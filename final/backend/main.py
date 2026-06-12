@@ -152,8 +152,21 @@ def clear_config(platform: str):
 # ---- Insights ----
 
 @app.get("/insights")
-def insights():
-    return generate_account_insights()
+def insights(
+    instagram: Optional[str] = None,
+    tiktok: Optional[str] = None,
+    twitter: Optional[str] = None,
+    youtube: Optional[str] = None,
+    facebook: Optional[str] = None,
+):
+    identifiers = {
+        "instagram": instagram,
+        "tiktok": tiktok,
+        "twitter": twitter,
+        "youtube": youtube,
+        "facebook": facebook,
+    }
+    return generate_account_insights(identifiers)
 
 # ---- Video Analyzer ----
 

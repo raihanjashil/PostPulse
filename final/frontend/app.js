@@ -42,9 +42,8 @@ function apiFetch(path, options = {}) {
 // ---- STATE ----
 const state = {
   draft: '',
-  platforms: ['instagram', 'tiktok', 'twitter', 'youtube', 'linkedin', 'facebook'],
+  platforms: ['twitter', 'linkedin', 'facebook'],
   topic: 'science innovation',
-  mediaType: 'text',
   goal: 'reach',
   results: null,   // { results, benchmarks, recommendation }
   backendLive: false,
@@ -76,7 +75,6 @@ const $ = id => document.getElementById(id);
 const draftInput     = $('draft-input');
 const charCount      = $('char-count');
 const topicInput     = $('topic-input');
-const mediaSelect    = $('media-select');
 const goalSelect     = $('goal-select');
 const btnAnalyze     = $('btn-analyze');
 const btnClear       = $('btn-clear');
@@ -110,7 +108,6 @@ function init() {
   });
 
   topicInput.addEventListener('input', () => { state.topic = topicInput.value; });
-  mediaSelect.addEventListener('change', () => { state.mediaType = mediaSelect.value; });
   goalSelect.addEventListener('change', () => { state.goal = goalSelect.value; });
 
   btnAnalyze.addEventListener('click', onAnalyze);
@@ -141,18 +138,14 @@ function init() {
 
   $('btn-load-insights')?.addEventListener('click', onLoadInsights);
 
-  // Gear button toggles settings panel
+  // Gear button toggles the Connected Accounts panel
   const btnSettings = $('btn-settings');
-  const settingsPanel = $('settings-panel');
-  if (btnSettings && settingsPanel) {
+  const accountsSection = $('accounts-section');
+  if (btnSettings && accountsSection) {
     btnSettings.addEventListener('click', () => {
-      settingsPanel.classList.toggle('hidden');
-      if (!settingsPanel.classList.contains('hidden')) renderSettings();
+      accountsSection.classList.toggle('hidden');
+      if (!accountsSection.classList.contains('hidden')) renderAccountsBanner();
     });
-  }
-  const btnSettingsClose = $('btn-settings-close');
-  if (btnSettingsClose && settingsPanel) {
-    btnSettingsClose.addEventListener('click', () => settingsPanel.classList.add('hidden'));
   }
 }
 
@@ -240,94 +233,86 @@ async function disconnectPlatform(platform) {
 }
 
 // ---- ACCOUNTS BANNER ----
+// Instagram/TikTok/YouTube/Facebook connections aren't available yet — always "Coming soon".
+const COMING_SOON_PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook'];
+// Twitter/LinkedIn require operator-supplied OAuth Client ID/Secret before connecting.
+const CONFIGURABLE_PLATFORMS = ['twitter', 'linkedin'];
+
+let openCredentialForm = null; // platform id whose Client ID/Secret form is currently expanded
+
 function renderAccountsBanner() {
   const grid = $('accounts-grid');
   if (!grid) return;
   grid.innerHTML = '';
 
-  const ALL = ['instagram', 'tiktok', 'twitter', 'youtube', 'linkedin', 'facebook'];
+  const ALL = [...COMING_SOON_PLATFORMS, ...CONFIGURABLE_PLATFORMS];
   ALL.forEach(pid => {
-    const p    = PLATFORMS[pid];
+    const p = PLATFORMS[pid];
+    const card = document.createElement('div');
+
+    if (COMING_SOON_PLATFORMS.includes(pid)) {
+      card.className = 'account-card coming-soon';
+      card.innerHTML = `
+        <div class="account-platform-icon">${p.icon}</div>
+        <div class="account-platform-name">${p.name}</div>
+        <button class="btn-connect-blocked" disabled>Coming soon</button>
+      `;
+      grid.appendChild(card);
+      return;
+    }
+
+    // CONFIGURABLE_PLATFORMS (twitter, linkedin)
     const conn = state.connectedAccounts[pid];
     const isConnected = conn && !conn.blocked;
-    const isBlocked   = conn && conn.blocked;
+    const isConfigured = state.platformConfig[pid]?.configured === true;
+    const formOpen = openCredentialForm === pid;
 
-    // Check if this platform has credentials configured (for non-blocked platforms)
-    const needsSetup = !isBlocked && !conn && state.platformConfig[pid]?.configured === false;
-
-    const card = document.createElement('div');
-    card.className = `account-card${isConnected ? ' connected' : ''}${isBlocked ? ' blocked' : ''}`;
+    card.className = `account-card${isConnected ? ' connected' : ''}`;
     card.innerHTML = `
       <div class="account-platform-icon">${p.icon}</div>
       <div class="account-platform-name">${p.name}</div>
       ${isConnected
         ? `<div class="account-username">@${conn.username}</div>
            <button class="btn-disconnect" data-platform="${pid}">Disconnect</button>`
-        : isBlocked
-          ? `<div class="account-blocked-msg">Requires app approval</div>
-             <button class="btn-connect-blocked" disabled>Coming soon</button>`
-          : needsSetup
-            ? `<button class="btn-connect" data-platform="${pid}">Connect</button>
-               <div class="setup-required-note">⚙ Add credentials in Settings</div>`
-            : `<button class="btn-connect" data-platform="${pid}">Connect</button>`
+        : `<button class="btn-connect" data-platform="${pid}">Connect</button>
+           <button class="btn-edit-credentials" data-platform="${pid}">${isConfigured ? '✎ Edit credentials' : '⚙ Set up credentials'}</button>`
       }
+      ${formOpen ? `
+        <div class="account-credential-form">
+          <span class="settings-badge ${isConfigured ? 'configured' : 'not-set'}">
+            ${isConfigured ? '● Configured' : '● Not set'}
+          </span>
+          <input class="settings-input" type="text" id="cfg-cid-${pid}" placeholder="Client ID" autocomplete="off" spellcheck="false" />
+          <input class="settings-input" type="password" id="cfg-secret-${pid}" placeholder="Client Secret" autocomplete="off" />
+          <button class="btn-settings-save" data-platform="${pid}">Save &amp; Connect</button>
+          ${isConfigured ? `<button class="btn-settings-clear" data-platform="${pid}">Clear</button>` : ''}
+        </div>
+      ` : ''}
     `;
     grid.appendChild(card);
   });
 
   grid.querySelectorAll('.btn-connect').forEach(btn => {
-    btn.addEventListener('click', () => startOAuthFlow(btn.dataset.platform));
+    btn.addEventListener('click', () => {
+      const pid = btn.dataset.platform;
+      if (state.platformConfig[pid]?.configured === true) {
+        startOAuthFlow(pid);
+      } else {
+        openCredentialForm = openCredentialForm === pid ? null : pid;
+        renderAccountsBanner();
+      }
+    });
   });
   grid.querySelectorAll('.btn-disconnect').forEach(btn => {
     btn.addEventListener('click', () => disconnectPlatform(btn.dataset.platform));
   });
-}
-
-// ---- SETTINGS PANEL ----
-// Only Twitter and LinkedIn are configurable (others are blocked by API review)
-const CONFIGURABLE_PLATFORMS = ['twitter', 'linkedin'];
-
-function renderSettings() {
-  const grid = $('settings-form-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  CONFIGURABLE_PLATFORMS.forEach(pid => {
-    const p    = PLATFORMS[pid];
-    const conf = state.platformConfig[pid];
-    const isConfigured = conf?.configured === true;
-
-    const row = document.createElement('div');
-    row.className = 'settings-row';
-    row.innerHTML = `
-      <div class="settings-platform-label">
-        ${p.icon} ${p.name}
-        <span class="settings-badge ${isConfigured ? 'configured' : 'not-set'}">
-          ${isConfigured ? '● Configured' : '● Not set'}
-        </span>
-      </div>
-      <input
-        class="settings-input"
-        type="text"
-        id="cfg-cid-${pid}"
-        placeholder="Client ID"
-        autocomplete="off"
-        spellcheck="false"
-      />
-      <input
-        class="settings-input"
-        type="password"
-        id="cfg-secret-${pid}"
-        placeholder="Client Secret"
-        autocomplete="off"
-      />
-      <button class="btn-settings-save" data-platform="${pid}">Save</button>
-      <button class="btn-settings-clear" data-platform="${pid}" ${isConfigured ? '' : 'disabled style="opacity:0.4;cursor:default"'}>Clear</button>
-    `;
-    grid.appendChild(row);
+  grid.querySelectorAll('.btn-edit-credentials').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pid = btn.dataset.platform;
+      openCredentialForm = openCredentialForm === pid ? null : pid;
+      renderAccountsBanner();
+    });
   });
-
-  // Wire up Save buttons
   grid.querySelectorAll('.btn-settings-save').forEach(btn => {
     btn.addEventListener('click', async () => {
       const pid      = btn.dataset.platform;
@@ -347,21 +332,20 @@ function renderSettings() {
         if (res.ok) {
           state.platformConfig[pid] = { configured: true };
           showToast(`${PLATFORMS[pid].name} credentials saved`);
-          $(`cfg-cid-${pid}`).value    = '';
-          $(`cfg-secret-${pid}`).value = '';
-          renderSettings();
+          openCredentialForm = null;
           renderAccountsBanner();
+          startOAuthFlow(pid);
         } else {
           showToast('Save failed', 'error');
+          btn.disabled = false; btn.textContent = 'Save & Connect';
         }
-      } catch { showToast('Network error', 'error'); }
-      btn.disabled = false; btn.textContent = 'Save';
+      } catch {
+        showToast('Network error', 'error');
+        btn.disabled = false; btn.textContent = 'Save & Connect';
+      }
     });
   });
-
-  // Wire up Clear buttons
   grid.querySelectorAll('.btn-settings-clear').forEach(btn => {
-    if (btn.disabled) return;
     btn.addEventListener('click', async () => {
       const pid = btn.dataset.platform;
       btn.disabled = true; btn.textContent = 'Clearing…';
@@ -369,7 +353,6 @@ function renderSettings() {
         await apiFetch(`/config/${pid}`, { method: 'DELETE' });
         state.platformConfig[pid] = { configured: false };
         showToast(`${PLATFORMS[pid].name} credentials cleared`);
-        renderSettings();
         renderAccountsBanner();
       } catch { showToast('Network error', 'error'); }
     });
@@ -410,7 +393,6 @@ async function onAnalyze() {
           draft: state.draft,
           platform: 'all',
           topic: state.topic,
-          media_type: state.mediaType,
           goal: state.goal,
         }),
       });
@@ -1037,7 +1019,20 @@ async function onLoadInsights() {
     let data;
     if (state.backendLive) {
       activateStep(stepFetch);
-      const res = await apiFetch('/insights');
+      const identifierFields = {
+        instagram: 'insights-instagram',
+        tiktok: 'insights-tiktok',
+        twitter: 'insights-twitter',
+        youtube: 'insights-youtube',
+        facebook: 'insights-facebook',
+      };
+      const params = new URLSearchParams();
+      Object.entries(identifierFields).forEach(([platform, inputId]) => {
+        const val = $(inputId)?.value.trim();
+        if (val) params.set(platform, val);
+      });
+      const qs = params.toString();
+      const res = await apiFetch(`/insights${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error(`API ${res.status}`);
       completeStep(stepFetch);
       activateStep(stepAI);
@@ -1244,6 +1239,7 @@ async function onAnalyzeVideo() {
 
 function renderVideoResults(data) {
   const summaryEl  = $('video-summary-card');
+  const bestEl     = $('video-best-thumbnail');
   const framesEl   = $('video-frames-grid');
   const platformEl = $('video-platform-fit');
   const bestIdx    = data.best_thumbnail_index ?? 0;
@@ -1267,6 +1263,30 @@ function renderVideoResults(data) {
       ` : ''}
     </div>
   `;
+
+  // ---- Best thumbnail (full size) ----
+  const bestFrame = (data.frames || []).find(f => f.index === bestIdx);
+  if (bestFrame?.thumbnail) {
+    const score = bestFrame.score ?? 0;
+    const color = score >= 7 ? 'var(--green)' : score >= 4 ? 'var(--orange)' : 'var(--red)';
+    bestEl.innerHTML = `
+      <div class="results-header" style="margin-top:32px;">
+        <h2>★ Best Thumbnail</h2>
+        <p class="results-sub">AI-picked frame for your cover image</p>
+      </div>
+      <div class="best-thumbnail-card">
+        <img class="best-thumbnail-img" src="${bestFrame.thumbnail}" alt="Best thumbnail">
+        <div class="best-thumbnail-meta">
+          <span class="frame-score" style="color:${color}">${score}/10</span>
+          <div class="frame-feedback">${bestFrame.feedback || ''}</div>
+        </div>
+      </div>
+    `;
+    bestEl.classList.remove('hidden');
+  } else {
+    bestEl.innerHTML = '';
+    bestEl.classList.add('hidden');
+  }
 
   // ---- Frames grid ----
   framesEl.innerHTML = '';

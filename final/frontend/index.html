@@ -25,42 +25,26 @@
 
   <main>
 
+    <!-- CONNECTED ACCOUNTS (toggled via gear icon) -->
+    <section class="accounts-section hidden" id="accounts-section">
+      <div class="accounts-header">
+        <span class="accounts-title">Connected Accounts</span>
+        <span class="accounts-sub">Connect your own accounts for personalized benchmarks &amp; one-click publishing</span>
+      </div>
+      <div class="accounts-grid" id="accounts-grid">
+        <!-- Rendered by app.js on load -->
+      </div>
+    </section>
+
     <!-- TAB BAR -->
     <div class="tab-bar">
-      <button class="tab-btn active" data-tab="scorer">⚡ Post Scorer</button>
-      <button class="tab-btn" data-tab="insights">📊 Account Intelligence</button>
+      <button class="tab-btn active" data-tab="insights">📊 Account Intelligence</button>
+      <button class="tab-btn" data-tab="scorer">⚡ Post Scorer</button>
       <button class="tab-btn" data-tab="video">🎬 Video Analyzer</button>
     </div>
 
     <!-- ======== TAB: POST SCORER ======== -->
-    <div id="tab-scorer" class="tab-pane active">
-
-      <!-- SETTINGS PANEL (OAuth credentials for the app operator) -->
-      <section class="settings-panel hidden" id="settings-panel">
-        <div class="settings-header">
-          <span class="settings-title">⚙ Platform Credentials</span>
-          <button class="btn-settings-close" id="btn-settings-close">✕</button>
-        </div>
-        <p class="settings-desc">
-          Paste in your OAuth app credentials for each platform. These are saved server-side in
-          <code>platform_config.json</code> and are never sent to the browser.
-          End users connecting their accounts never need to touch this — it's a one-time setup for whoever runs this server.
-        </p>
-        <div class="settings-form-grid" id="settings-form-grid">
-          <!-- Rendered by app.js -->
-        </div>
-      </section>
-
-      <!-- CONNECTED ACCOUNTS -->
-      <section class="accounts-section" id="accounts-section">
-        <div class="accounts-header">
-          <span class="accounts-title">Connected Accounts</span>
-          <span class="accounts-sub">Connect your own accounts for personalized benchmarks &amp; one-click publishing</span>
-        </div>
-        <div class="accounts-grid" id="accounts-grid">
-          <!-- Rendered by app.js on load -->
-        </div>
-      </section>
+    <div id="tab-scorer" class="tab-pane hidden">
 
       <section class="input-section">
         <div class="input-header">
@@ -88,15 +72,6 @@
               <input type="text" id="topic-input" value="science innovation" placeholder="e.g. science innovation">
             </div>
             <div class="extra-input-group">
-              <label class="extra-label" for="media-select">Media type</label>
-              <select id="media-select">
-                <option value="text">📝 Text only</option>
-                <option value="image">🖼️ Image</option>
-                <option value="video">🎬 Video</option>
-                <option value="carousel">🎠 Carousel / Reel</option>
-              </select>
-            </div>
-            <div class="extra-input-group">
               <label class="extra-label" for="goal-select">Goal</label>
               <select id="goal-select">
                 <option value="reach">📈 Maximize Reach</option>
@@ -109,10 +84,7 @@
           <div class="platform-select">
             <span class="platform-select-label">Target platforms</span>
             <div class="platform-chips">
-              <button class="chip active" data-platform="instagram">📸 Instagram</button>
-              <button class="chip active" data-platform="tiktok">🎵 TikTok</button>
               <button class="chip active" data-platform="twitter">🐦 X / Twitter</button>
-              <button class="chip active" data-platform="youtube">▶️ YouTube</button>
               <button class="chip active" data-platform="linkedin">💼 LinkedIn</button>
               <button class="chip active" data-platform="facebook">📘 Facebook</button>
             </div>
@@ -224,11 +196,33 @@
     </div><!-- /tab-scorer -->
 
     <!-- ======== TAB: ACCOUNT INTELLIGENCE ======== -->
-    <div id="tab-insights" class="tab-pane hidden">
+    <div id="tab-insights" class="tab-pane active">
       <section class="insights-section">
         <div class="results-header">
           <h2>Account Intelligence</h2>
-          <p class="results-sub">Real engagement patterns decoded from Stars of Science accounts</p>
+          <p class="results-sub">Real engagement patterns decoded from Stars of Science accounts — or plug in your own</p>
+        </div>
+        <div class="insights-inputs">
+          <div class="extra-input-group">
+            <label class="extra-label" for="insights-instagram">📸 Instagram handle</label>
+            <input type="text" id="insights-instagram" placeholder="e.g. starsofsciencetv">
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="insights-tiktok">🎵 TikTok handle</label>
+            <input type="text" id="insights-tiktok" placeholder="e.g. starsofscience">
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="insights-twitter">🐦 X / Twitter handle</label>
+            <input type="text" id="insights-twitter" placeholder="e.g. starsofscience">
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="insights-youtube">▶️ YouTube channel ID</label>
+            <input type="text" id="insights-youtube" placeholder="e.g. UCQ36ixRyMdlCuQDeMIJ8lqg">
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="insights-facebook">📘 Facebook page URL</label>
+            <input type="text" id="insights-facebook" placeholder="e.g. https://facebook.com/yourpage">
+          </div>
         </div>
         <button class="btn-primary" id="btn-load-insights">
           <span class="btn-icon">📊</span> Load Account Intelligence
@@ -303,9 +297,22 @@
 
         <div id="video-results" class="hidden">
           <div id="video-summary-card"></div>
+          <div id="video-best-thumbnail" class="hidden"></div>
           <div class="results-header" style="margin-top:32px;"><h2>Frame Analysis</h2></div>
           <div id="video-frames-grid" class="video-frames-grid"></div>
           <div id="video-platform-fit"></div>
+
+          <div class="video-editor-section">
+            <div class="results-header">
+              <h2>🎵 AI Video Editor</h2>
+              <p class="results-sub">Auto-suggest music, cuts, and pacing edits based on the analysis above</p>
+            </div>
+            <div class="video-editor-placeholder">
+              <div class="coming-soon-badge">🚧 In development</div>
+              <p>AI-driven song suggestions and automatic edits are coming soon — this will use the frame analysis above to recommend music and trims.</p>
+              <button class="btn-primary" disabled><span class="btn-icon">✨</span> Generate AI Edit</button>
+            </div>
+          </div>
         </div>
       </section>
     </div><!-- /tab-video -->

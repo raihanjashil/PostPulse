@@ -197,17 +197,20 @@ def hard_rules_check(post: str, platform: str, media_type: str = "text") -> list
 # ─────────────────────────────────────────
 # GET ALL SOS DATA
 # ─────────────────────────────────────────
-def get_platform_data(platform: str):
+def get_platform_data(platform: str, identifier: str = None):
+    """`identifier` overrides the Stars of Science default account:
+    handle for instagram/tiktok/twitter, channel ID for youtube, page URL for facebook."""
     fetchers = {
         "instagram": get_instagram_posts,
         "tiktok": get_tiktok_posts,
         "twitter": get_twitter_posts,
         "youtube": get_youtube_videos,
         "facebook": get_facebook_posts,
-        "linkedin": lambda: []  # no free scraper, fallback to empty
+        "linkedin": lambda *_: []  # no free scraper, fallback to empty
     }
-    posts = fetchers.get(platform, lambda: [])()
-    
+    fetcher = fetchers.get(platform, lambda *_: [])
+    posts = fetcher(identifier) if identifier else fetcher()
+
     if not posts:
         return [], 0, 0
     

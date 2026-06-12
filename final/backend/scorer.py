@@ -11,6 +11,9 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 PLATFORMS = ["instagram", "tiktok", "twitter", "youtube", "linkedin", "facebook"]
 
+# Post Scorer only targets these platforms (the others are "Coming soon" in the UI)
+SCORE_ALL_PLATFORMS = ["twitter", "linkedin", "facebook"]
+
 def score_post(
     draft: str,
     platform: str,
@@ -143,7 +146,7 @@ def score_all_platforms(
     import sessions as sessions_module
 
     results = {}
-    for platform in PLATFORMS:
+    for platform in SCORE_ALL_PLATFORMS:
         try:
             user_data = None
             if session_id:
@@ -199,11 +202,14 @@ def recommend_publishing(results: dict, benchmarks: dict, goal: str = "reach") -
     }
 
 
-def generate_account_insights():
-    """Analyze real recent posts per platform and surface engagement patterns."""
+def generate_account_insights(identifiers: dict = None):
+    """Analyze real recent posts per platform and surface engagement patterns.
+    `identifiers` optionally maps platform -> account identifier (handle/channel ID/page URL)
+    to override the Stars of Science defaults."""
+    identifiers = identifiers or {}
     account_data = {}
     for platform in PLATFORMS:
-        top_posts, avg_likes, avg_comments = get_platform_data(platform)
+        top_posts, avg_likes, avg_comments = get_platform_data(platform, identifiers.get(platform))
         account_data[platform] = {
             "avg_likes": avg_likes,
             "avg_comments": avg_comments,
