@@ -86,6 +86,14 @@
               <option value="carousel">🎠 Carousel / Reel</option>
             </select>
           </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="goal-select">Goal</label>
+            <select id="goal-select">
+              <option value="reach">📈 Maximize Reach</option>
+              <option value="engagement">💬 Maximize Engagement</option>
+              <option value="conversions">🎯 Maximize Conversions</option>
+            </select>
+          </div>
         </div>
 
         <div class="platform-select">
@@ -132,6 +140,10 @@
     <!-- RESULTS -->
     <section class="results-section hidden" id="results-section">
 
+      <div class="recommendation-section hidden" id="recommendation-section">
+        <div class="recommendation-card" id="recommendation-card"></div>
+      </div>
+
       <div class="benchmark-section hidden" id="benchmark-section">
         <div class="results-header">
           <h2>SoS Benchmark</h2>
@@ -175,6 +187,18 @@
             <button class="copy-btn" id="copy-rewrite-btn">Copy</button>
           </div>
           <div class="rewrite-text" id="rewrite-text"></div>
+        </div>
+
+        <div class="detail-algorithm hidden" id="detail-algorithm">
+          <div class="algo-header"><span class="algo-title">🧠 Algorithm Decoder</span></div>
+          <div class="algo-verdict" id="algo-verdict"></div>
+          <div class="algo-signals" id="algo-signals"></div>
+        </div>
+
+        <div class="detail-audience hidden" id="detail-audience">
+          <div class="audience-header"><span class="audience-title">🌍 Audience &amp; Geo Targeting</span></div>
+          <div class="audience-tabs" id="audience-tabs"></div>
+          <div class="audience-body" id="audience-body"></div>
         </div>
       </div>
 

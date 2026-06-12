@@ -7,7 +7,7 @@ import auth
 import publish
 import sessions as sessions_module
 import platform_config as cfg_module
-from scorer import score_post, score_all_platforms
+from scorer import score_post, score_all_platforms, recommend_publishing
 
 app = FastAPI(title="SoS Content Scorer API")
 
@@ -25,6 +25,7 @@ class ScoreRequest(BaseModel):
     platform: str = "all"
     topic: str = "science innovation"
     media_type: str = "text"
+    goal: str = "reach"  # "reach" | "engagement" | "conversions"
 
 class PublishRequest(BaseModel):
     platform: str
@@ -84,7 +85,9 @@ def score(req: ScoreRequest, x_session_id: Optional[str] = Header(default=None))
                     "blocked": sess_plat.get("blocked", False),
                 }
 
-    return {"results": results, "benchmarks": benchmarks, "connected": connected}
+    recommendation = recommend_publishing(results, benchmarks, req.goal) if req.platform == "all" else {}
+
+    return {"results": results, "benchmarks": benchmarks, "connected": connected, "recommendation": recommendation}
 
 # ---- Auth ----
 

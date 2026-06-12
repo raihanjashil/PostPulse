@@ -69,6 +69,8 @@ Score this draft on 5 dimensions (0-20 each):
 4. Format Fit — right length, hashtags, structure AND media type (text/image/video/carousel) for {platform}?
 5. Tone Match — matches {platform} audience expectations?
 
+Also decode the {platform} algorithm for this specific post, and rewrite it for three different MENA/GCC regions & audiences.
+
 Return ONLY valid JSON, no extra text:
 {{
   "overall_score": <0-100>,
@@ -84,13 +86,24 @@ Return ONLY valid JSON, no extra text:
   "rule_flags": {json.dumps(flags)},
   "rewritten": "<improved version of the post for {platform}>",
   "best_time_to_post": "<specific recommendation>",
-  "hashtag_suggestions": ["#tag1", "#tag2", "#tag3"]
+  "hashtag_suggestions": ["#tag1", "#tag2", "#tag3"],
+  "algorithm_decoder": {{
+    "verdict": "<1 sentence: will {platform}'s algorithm distribute or suppress THIS post, and why>",
+    "signals": [
+      {{"name": "<the 3-4 ranking signals {platform} cares about most, e.g. watch-through rate, saves & shares, reply velocity, dwell time, CTR>", "status": "strong|average|weak", "note": "<1 sentence: how THIS draft performs on this signal>"}}
+    ]
+  }},
+  "audience_variants": [
+    {{"region": "🇶🇦🇦🇪 Qatar & UAE", "audience": "Gulf Youth (18-24)", "rewritten": "<rewrite tailored to this region/audience, with light local flavor>", "rationale": "<1 sentence why this works for them>"}},
+    {{"region": "🇸🇦 Saudi Arabia", "audience": "STEM Students & Young Professionals", "rewritten": "<rewrite tailored to this region/audience, with light local flavor>", "rationale": "<1 sentence why this works for them>"}},
+    {{"region": "🇪🇬 Egypt & Levant", "audience": "Parents & Educators", "rewritten": "<rewrite tailored to this region/audience, with light local flavor>", "rationale": "<1 sentence why this works for them>"}}
+  ]
 }}
 """
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        max_tokens=1000,
+        max_tokens=2000,
         response_format={"type": "json_object"},
         messages=[{"role": "user", "content": prompt}]
     )
@@ -99,9 +112,19 @@ Return ONLY valid JSON, no extra text:
     raw = raw.replace("```json", "").replace("```", "").strip()
     result = json.loads(raw)
 
+    comment_rate = round((avg_comments / avg_likes) * 100, 2) if avg_likes > 0 else 0
+    if comment_rate >= 5:
+        engagement_quality = "high"
+    elif comment_rate >= 1:
+        engagement_quality = "medium"
+    else:
+        engagement_quality = "low"
+
     result["_benchmark"] = {
         "avg_likes": avg_likes,
         "avg_comments": avg_comments,
+        "comment_rate": comment_rate,
+        "engagement_quality": engagement_quality,
         "top_post_likes": top_posts[0]["likes"] if top_posts else 0,
         "top_post_caption": (top_posts[0].get("caption", "")[:80] + "...") if top_posts else "",
         "post_count": len(top_posts),
@@ -137,3 +160,41 @@ def score_all_platforms(
         except Exception as e:
             results[platform] = {"error": str(e), "overall_score": 0}
     return results
+
+
+def recommend_publishing(results: dict, benchmarks: dict, goal: str = "reach") -> dict:
+    """
+    Cross-platform Targeted Publishing recommendation: given the scored results
+    for all platforms, pick where (and when) to publish for a given goal.
+    goal: "reach" | "engagement" | "conversions"
+    """
+    ranked = [(p, d.get("overall_score", 0)) for p, d in results.items() if "error" not in d]
+    if not ranked:
+        return {}
+
+    if goal == "engagement":
+        quality_weight = {"high": 2, "medium": 1, "low": 0}
+        ranked.sort(key=lambda x: (quality_weight.get(benchmarks.get(x[0], {}).get("engagement_quality", "low"), 0), x[1]), reverse=True)
+    elif goal == "conversions":
+        ranked.sort(key=lambda x: (results[x[0]].get("scores", {}).get("cta", 0), x[1]), reverse=True)
+    else:  # reach
+        ranked.sort(key=lambda x: (benchmarks.get(x[0], {}).get("avg_likes", 0), x[1]), reverse=True)
+
+    top_platform, top_score = ranked[0]
+    top_result = results[top_platform]
+    top_bm = benchmarks.get(top_platform, {})
+
+    rationale = f"For maximizing {goal}, {top_platform} is your best bet — it scored {top_score}/100 on this draft."
+    if top_bm:
+        rationale += f" Benchmark engagement quality: {top_bm.get('engagement_quality', 'unknown')} ({top_bm.get('comment_rate', 0)} comments per 100 likes)."
+
+    return {
+        "goal": goal,
+        "recommended_platform": top_platform,
+        "recommended_score": top_score,
+        "best_time_to_post": top_result.get("best_time_to_post"),
+        "ranked_platforms": [p for p, _ in ranked],
+        "rationale": rationale,
+    }
+
+    

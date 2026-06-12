@@ -8,9 +8,14 @@
    {
      results: { platform: { overall_score, scores{hook,clarity,cta,format,tone},
                 strengths, weaknesses, rule_flags, rewritten,
-                best_time_to_post, hashtag_suggestions } },
-     benchmarks: { platform: { avg_likes, avg_comments, top_post_likes, post_count } },
-     connected: { platform: { username, blocked } }
+                best_time_to_post, hashtag_suggestions,
+                algorithm_decoder: { verdict, signals: [{name, status, note}] },
+                audience_variants: [{ region, audience, rewritten, rationale }] } },
+     benchmarks: { platform: { avg_likes, avg_comments, comment_rate, engagement_quality,
+                top_post_likes, post_count } },
+     connected: { platform: { username, blocked } },
+     recommendation: { goal, recommended_platform, recommended_score, best_time_to_post,
+                ranked_platforms, rationale }
    }
    ============================ */
 
@@ -40,7 +45,8 @@ const state = {
   platforms: ['instagram', 'tiktok', 'twitter', 'youtube', 'linkedin', 'facebook'],
   topic: 'science innovation',
   mediaType: 'text',
-  results: null,   // { results, benchmarks }
+  goal: 'reach',
+  results: null,   // { results, benchmarks, recommendation }
   backendLive: false,
   connectedAccounts: {},   // { platform: { username, blocked } }
   platformConfig: {},      // { platform: { configured: bool } }
@@ -71,6 +77,7 @@ const draftInput     = $('draft-input');
 const charCount      = $('char-count');
 const topicInput     = $('topic-input');
 const mediaSelect    = $('media-select');
+const goalSelect     = $('goal-select');
 const btnAnalyze     = $('btn-analyze');
 const btnClear       = $('btn-clear');
 const loadingSection = $('loading-section');
@@ -81,6 +88,14 @@ const benchmarkGrid  = $('benchmark-grid');
 const benchmarkSec   = $('benchmark-section');
 const rulesList      = $('rules-list');
 const scheduleGrid   = $('schedule-grid');
+const recommendationSection = $('recommendation-section');
+const recommendationCard    = $('recommendation-card');
+const detailAlgorithm = $('detail-algorithm');
+const algoVerdict     = $('algo-verdict');
+const algoSignals     = $('algo-signals');
+const detailAudience  = $('detail-audience');
+const audienceTabs    = $('audience-tabs');
+const audienceBody    = $('audience-body');
 const apiDot         = $('api-dot');
 const apiStatusText  = $('api-status');
 const stepBenchmark  = $('step-benchmark');
@@ -96,6 +111,7 @@ function init() {
 
   topicInput.addEventListener('input', () => { state.topic = topicInput.value; });
   mediaSelect.addEventListener('change', () => { state.mediaType = mediaSelect.value; });
+  goalSelect.addEventListener('change', () => { state.goal = goalSelect.value; });
 
   btnAnalyze.addEventListener('click', onAnalyze);
   btnClear.addEventListener('click', () => {
@@ -391,6 +407,7 @@ async function onAnalyze() {
           platform: 'all',
           topic: state.topic,
           media_type: state.mediaType,
+          goal: state.goal,
         }),
       });
 
@@ -432,12 +449,13 @@ async function onAnalyze() {
       if (data.benchmarks?.[p]) benchmarks[p] = data.benchmarks[p];
     });
 
-    state.results = { results, benchmarks };
+    state.results = { results, benchmarks, recommendation: data.recommendation || null };
 
     await delay(300);
     loadingSection.classList.add('hidden');
     resultsSection.classList.remove('hidden');
 
+    renderRecommendation();
     renderBenchmarks();
     renderRuleFlags();
     renderScoreCards();
@@ -457,6 +475,7 @@ async function onAnalyze() {
     state.results = data;
 
     resultsSection.classList.remove('hidden');
+    renderRecommendation();
     renderBenchmarks();
     renderRuleFlags();
     renderScoreCards();
@@ -469,6 +488,39 @@ async function onAnalyze() {
 // =============================
 // RENDERERS
 // =============================
+
+const GOAL_LABELS = {
+  reach: '📈 Reach',
+  engagement: '💬 Engagement',
+  conversions: '🎯 Conversions',
+};
+
+function renderRecommendation() {
+  const rec = state.results?.recommendation;
+  if (!rec || !rec.recommended_platform) {
+    recommendationSection.classList.add('hidden');
+    return;
+  }
+
+  const p = PLATFORMS[rec.recommended_platform];
+  const rankedChips = (rec.ranked_platforms || []).map((pid, i) => {
+    const rp = PLATFORMS[pid];
+    const isTop = pid === rec.recommended_platform;
+    return `<span class="recommendation-chip${isTop ? ' top' : ''}">${i + 1}. ${rp?.icon || ''} ${rp?.name || pid}</span>`;
+  }).join('');
+
+  recommendationCard.innerHTML = `
+    <div class="recommendation-goal">${GOAL_LABELS[rec.goal] || rec.goal}</div>
+    <div class="recommendation-main">
+      <span class="recommendation-platform">${p?.icon || ''} ${p?.name || rec.recommended_platform}</span>
+      <span class="recommendation-score">${rec.recommended_score}/100</span>
+    </div>
+    <div class="recommendation-meta">Best time to post: ${rec.best_time_to_post || '—'}</div>
+    <div class="recommendation-rationale">${rec.rationale || ''}</div>
+    <div class="recommendation-ranked">${rankedChips}</div>
+  `;
+  recommendationSection.classList.remove('hidden');
+}
 
 function renderBenchmarks() {
   const bm = state.results.benchmarks || {};
@@ -483,6 +535,7 @@ function renderBenchmarks() {
 
   entries.forEach(([pid, d]) => {
     const p = PLATFORMS[pid];
+    const quality = d.engagement_quality || 'low';
     const card = document.createElement('div');
     card.className = 'benchmark-card';
     card.innerHTML = `
@@ -490,6 +543,8 @@ function renderBenchmarks() {
       <div class="benchmark-stat">${fmtNum(d.avg_likes)}</div>
       <div class="benchmark-label">avg likes/post</div>
       <div class="benchmark-detail">Top post: ${fmtNum(d.top_post_likes)} likes · ${d.post_count} posts</div>
+      <div class="benchmark-extra">${d.comment_rate ?? 0} comments per 100 likes</div>
+      <span class="engagement-badge ${quality}">${quality} engagement</span>
     `;
     benchmarkGrid.appendChild(card);
   });
@@ -700,8 +755,60 @@ function showDetail(pid) {
     rewritePanel.classList.add('hidden');
   }
 
+  // ---- Algorithm Decoder ----
+  const decoder = data.algorithm_decoder;
+  if (decoder && decoder.verdict) {
+    algoVerdict.textContent = decoder.verdict;
+    algoSignals.innerHTML = (decoder.signals || []).map(sig => `
+      <div class="algo-signal-row">
+        <span class="status-dot ${sig.status}"></span>
+        <span class="algo-signal-name">${sig.name}</span>
+        <span class="algo-signal-note">${sig.note}</span>
+      </div>
+    `).join('');
+    detailAlgorithm.classList.remove('hidden');
+  } else {
+    detailAlgorithm.classList.add('hidden');
+  }
+
+  // ---- Audience & Geo Targeting ----
+  const variants = data.audience_variants || [];
+  if (variants.length > 0) {
+    renderAudienceTabs(variants, 0);
+    detailAudience.classList.remove('hidden');
+  } else {
+    detailAudience.classList.add('hidden');
+  }
+
   detailPanel.classList.remove('hidden');
   detailPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderAudienceTabs(variants, activeIdx) {
+  audienceTabs.innerHTML = variants.map((v, i) => `
+    <button class="audience-tab${i === activeIdx ? ' active' : ''}" data-idx="${i}">${v.region} · ${v.audience}</button>
+  `).join('');
+
+  audienceTabs.querySelectorAll('.audience-tab').forEach(btn => {
+    btn.addEventListener('click', () => renderAudienceTabs(variants, Number(btn.dataset.idx)));
+  });
+
+  const v = variants[activeIdx];
+  audienceBody.innerHTML = `
+    <div class="audience-rewrite-wrap">
+      <button class="copy-btn audience-copy-btn">Copy</button>
+      <div class="audience-rewrite">${v.rewritten}</div>
+    </div>
+    <div class="audience-rationale">${v.rationale}</div>
+  `;
+  audienceBody.querySelector('.audience-copy-btn').addEventListener('click', e => {
+    navigator.clipboard.writeText(v.rewritten).then(() => {
+      const btn = e.target;
+      btn.textContent = 'Copied!';
+      btn.style.background = 'var(--green)'; btn.style.color = '#fff';
+      setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = ''; btn.style.color = ''; }, 1500);
+    });
+  });
 }
 
 function renderSchedule() {
@@ -804,9 +911,16 @@ function generateMockData(draft, platforms) {
   const benchmarks = {};
 
   platforms.forEach(pid => {
+    const avgLikes = rand(200, 800);
+    const avgComments = rand(10, 60);
+    const commentRate = avgLikes > 0 ? Math.round((avgComments / avgLikes) * 10000) / 100 : 0;
+    const engagementQuality = commentRate >= 5 ? 'high' : commentRate >= 1 ? 'medium' : 'low';
+
     benchmarks[pid] = {
-      avg_likes: rand(200, 800),
-      avg_comments: rand(10, 60),
+      avg_likes: avgLikes,
+      avg_comments: avgComments,
+      comment_rate: commentRate,
+      engagement_quality: engagementQuality,
       top_post_likes: rand(900, 3500),
       top_post_caption: 'Applications for Season 16...',
       post_count: rand(5, 10),
@@ -837,10 +951,39 @@ function generateMockData(draft, platforms) {
       rewritten: `🚀 This is where the AI-rewritten version would appear.\n\nIn live mode, GPT-4o-mini rewrites your draft optimized for ${PLATFORMS[pid]?.name || pid}, with the right tone, length, and CTA.\n\n[Mock mode — connect the backend to see real rewrites]`,
       best_time_to_post: ['Tue 6pm GST', 'Wed 10am GST', 'Thu 7pm GST', 'Fri 8pm GST', 'Mon 1pm GST', 'Wed 3pm GST'][Object.keys(PLATFORMS).indexOf(pid)] || 'Wed 6pm GST',
       hashtag_suggestions: ['#StarsOfScience', '#Innovation', '#Qatar', '#MENA', '#ArabInventors'].slice(0, rand(3, 5)),
+      algorithm_decoder: {
+        verdict: `${PLATFORMS[pid]?.name || pid}'s algorithm will give this post moderate distribution — the hook and CTA are doing some of the work, but engagement signals could be stronger.`,
+        signals: [
+          { name: 'Hook / Scroll-stop', status: hasEmoji ? 'strong' : 'average', note: hasEmoji ? 'Emoji-led opener helps it stand out in feed.' : 'Opening line could be punchier to stop the scroll.' },
+          { name: 'Replies & Shares', status: hasCTA ? 'average' : 'weak', note: hasCTA ? 'CTA may drive some replies, but not designed to spark discussion.' : 'No prompt encouraging replies or shares.' },
+          { name: 'Watch-through / Dwell time', status: 'average', note: '[Mock mode — connect the backend for real per-platform signals]' },
+        ],
+      },
+      audience_variants: [
+        { region: '🇶🇦🇦🇪 Qatar & UAE', audience: 'Gulf Youth (18-24)', rewritten: `🌟 [Mock] ${draft.slice(0, 80)}${draft.length > 80 ? '…' : ''} — rewritten for Gulf youth.`, rationale: 'Youthful tone and emojis resonate with this audience.' },
+        { region: '🇸🇦 Saudi Arabia', audience: 'STEM Students & Young Professionals', rewritten: `🔬 [Mock] ${draft.slice(0, 80)}${draft.length > 80 ? '…' : ''} — rewritten for Saudi STEM audience.`, rationale: 'Frames the post around STEM relevance and career growth.' },
+        { region: '🇪🇬 Egypt & Levant', audience: 'Parents & Educators', rewritten: `📚 [Mock] ${draft.slice(0, 80)}${draft.length > 80 ? '…' : ''} — rewritten for parents & educators.`, rationale: 'Speaks to families and the educational value of the program.' },
+      ],
     };
   });
 
-  return { results, benchmarks };
+  // Pick the platform with the highest score as the mock recommendation
+  let topPid = platforms[0];
+  platforms.forEach(pid => {
+    if ((results[pid]?.overall_score || 0) > (results[topPid]?.overall_score || 0)) topPid = pid;
+  });
+  const ranked = [...platforms].sort((a, b) => (results[b]?.overall_score || 0) - (results[a]?.overall_score || 0));
+
+  const recommendation = {
+    goal: state.goal,
+    recommended_platform: topPid,
+    recommended_score: results[topPid]?.overall_score || 0,
+    best_time_to_post: results[topPid]?.best_time_to_post,
+    ranked_platforms: ranked,
+    rationale: `[Mock mode] For maximizing ${state.goal}, ${PLATFORMS[topPid]?.name || topPid} scored highest on this draft.`,
+  };
+
+  return { results, benchmarks, recommendation };
 }
 
 // ---- BOOT ----

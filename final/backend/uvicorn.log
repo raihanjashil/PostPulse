@@ -1,0 +1,20 @@
+INFO:     Started server process [16712]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:63145 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63146 - "POST /score HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58788 - "POST /score HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54341 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64612 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64612 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64612 - "OPTIONS /auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64612 - "GET /auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64612 - "OPTIONS /config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64612 - "GET /config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56528 - "GET /auth/instagram/start?session_id=c2dc12df-7a65-4f2a-b6cd-dd4522f4db13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56528 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56528 - "GET /auth/facebook/start?session_id=c2dc12df-7a65-4f2a-b6cd-dd4522f4db13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60089 - "OPTIONS /score HTTP/1.1" 200 OK
+Facebook error: HTTPSConnectionPool(host='facebook-scraper3.p.rapidapi.com', port=443): Read timed out. (read timeout=10)
+INFO:     127.0.0.1:60089 - "POST /score HTTP/1.1" 200 OK
