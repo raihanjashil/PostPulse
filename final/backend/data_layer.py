@@ -216,3 +216,84 @@ def get_platform_data(platform: str):
     avg_comments = sum(p.get("comments", 0) for p in posts) // len(posts)
     
     return top_posts, avg_likes, avg_comments
+
+
+# ─────────────────────────────────────────
+# USER-SPECIFIC DATA (when OAuth connected)
+# ─────────────────────────────────────────
+def get_user_platform_data(platform: str, access_token: str) -> tuple[list, int, int]:
+    """
+    Fetches the authenticated user's own recent posts for personalized benchmarks.
+    Falls back to ([], 0, 0) on any failure.
+    """
+    try:
+        if platform == "twitter":
+            return _get_user_twitter_data(access_token)
+        elif platform == "linkedin":
+            return _get_user_linkedin_data(access_token)
+        return [], 0, 0
+    except Exception as e:
+        print(f"User data fetch error ({platform}): {e}")
+        return [], 0, 0
+
+
+def _get_user_twitter_data(token: str) -> tuple[list, int, int]:
+    me_r = requests.get(
+        "https://api.twitter.com/2/users/me",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"user.fields": "public_metrics"},
+        timeout=10,
+    )
+    me = me_r.json().get("data", {})
+    user_id = me.get("id")
+    if not user_id:
+        return [], 0, 0
+
+    tweets_r = requests.get(
+        f"https://api.twitter.com/2/users/{user_id}/tweets",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"max_results": 10, "tweet.fields": "public_metrics,text"},
+        timeout=10,
+    )
+    tweets = tweets_r.json().get("data", [])
+    if not tweets:
+        return [], 0, 0
+
+    posts = [{
+        "platform": "twitter",
+        "caption": t.get("text", ""),
+        "likes": t.get("public_metrics", {}).get("like_count", 0),
+        "comments": t.get("public_metrics", {}).get("reply_count", 0),
+        "retweets": t.get("public_metrics", {}).get("retweet_count", 0),
+    } for t in tweets]
+
+    top_posts = sorted(posts, key=lambda x: x["likes"], reverse=True)[:3]
+    avg_likes = sum(p["likes"] for p in posts) // len(posts)
+    avg_comments = sum(p["comments"] for p in posts) // len(posts)
+    return top_posts, avg_likes, avg_comments
+
+
+def _get_user_linkedin_data(token: str) -> tuple[list, int, int]:
+    r = requests.get(
+        "https://api.linkedin.com/v2/ugcPosts",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Restli-Protocol-Version": "2.0.0",
+        },
+        params={"q": "authors", "count": 10},
+        timeout=10,
+    )
+    elements = r.json().get("elements", [])
+    if not elements:
+        return [], 0, 0
+
+    posts = [{
+        "platform": "linkedin",
+        "caption": el.get("specificContent", {})
+                     .get("com.linkedin.ugc.ShareContent", {})
+                     .get("shareCommentary", {}).get("text", ""),
+        "likes": 0,
+        "comments": 0,
+    } for el in elements[:10]]
+
+    return posts[:3], 0, 0

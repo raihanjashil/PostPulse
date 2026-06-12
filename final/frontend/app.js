@@ -1,20 +1,38 @@
 /* ============================
    POSTPULSE — APP LOGIC
-   
+
    Consumes: POST /score from FastAPI backend
    Backend runs: data_layer.py → scorer.py → main.py
-   
+
    Response shape:
    {
-     results: { platform: { overall_score, scores{hook,clarity,cta,format,tone}, 
-                strengths, weaknesses, rule_flags, rewritten, 
+     results: { platform: { overall_score, scores{hook,clarity,cta,format,tone},
+                strengths, weaknesses, rule_flags, rewritten,
                 best_time_to_post, hashtag_suggestions } },
-     benchmarks: { platform: { avg_likes, avg_comments, top_post_likes, post_count } }
+     benchmarks: { platform: { avg_likes, avg_comments, top_post_likes, post_count } },
+     connected: { platform: { username, blocked } }
    }
    ============================ */
 
 // ---- CONFIG ----
 const API_BASE = 'http://localhost:8000';
+
+// ---- SESSION ----
+function getOrCreateSessionId() {
+  let sid = localStorage.getItem('postpulse_session_id');
+  if (!sid) {
+    sid = crypto.randomUUID();
+    localStorage.setItem('postpulse_session_id', sid);
+  }
+  return sid;
+}
+const SESSION_ID = getOrCreateSessionId();
+
+function apiFetch(path, options = {}) {
+  options.headers = options.headers || {};
+  options.headers['X-Session-Id'] = SESSION_ID;
+  return fetch(`${API_BASE}${path}`, options);
+}
 
 // ---- STATE ----
 const state = {
@@ -24,6 +42,7 @@ const state = {
   mediaType: 'text',
   results: null,   // { results, benchmarks }
   backendLive: false,
+  connectedAccounts: {},  // { platform: { username, blocked } }
 };
 
 // ---- PLATFORM CONFIG ----
@@ -98,23 +117,118 @@ function init() {
     });
   });
 
+  renderAccountsBanner();
   checkBackendHealth();
 }
 
 // ---- HEALTH CHECK ----
 async function checkBackendHealth() {
   try {
-    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
+    const res = await apiFetch('/health', { signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       state.backendLive = true;
       apiDot.className = 'status-dot live';
       apiStatusText.textContent = 'API Live';
+      await loadAuthStatus();
     } else { throw 0; }
   } catch {
     state.backendLive = false;
     apiDot.className = 'status-dot mock';
     apiStatusText.textContent = 'Mock Mode';
   }
+}
+
+async function loadAuthStatus() {
+  try {
+    const res = await apiFetch('/auth/status');
+    if (res.ok) {
+      const data = await res.json();
+      state.connectedAccounts = data.connected || {};
+      renderAccountsBanner();
+    }
+  } catch { /* non-fatal */ }
+}
+
+// ---- OAUTH POPUP FLOW ----
+function startOAuthFlow(platform) {
+  const width = 520, height = 660;
+  const left  = Math.round(window.screenX + (window.outerWidth  - width)  / 2);
+  const top   = Math.round(window.screenY + (window.outerHeight - height) / 2);
+  const url   = `${API_BASE}/auth/${platform}/start?session_id=${SESSION_ID}`;
+
+  const popup = window.open(
+    url,
+    `oauth_${platform}`,
+    `width=${width},height=${height},left=${left},top=${top},toolbar=0,menubar=0,scrollbars=1`
+  );
+
+  function onMessage(e) {
+    if (e.origin !== 'http://localhost:8000') return;
+    const msg = e.data;
+    if (!msg || !msg.type || msg.platform !== platform) return;
+    window.removeEventListener('message', onMessage);
+
+    if (msg.type === 'oauth_success') {
+      state.connectedAccounts[platform] = { username: msg.username, blocked: false };
+      renderAccountsBanner();
+      renderScoreCards();  // refresh publish buttons if results exist
+      showToast(`Connected to ${PLATFORMS[platform].name} as @${msg.username}`);
+    } else if (msg.type === 'oauth_blocked') {
+      state.connectedAccounts[platform] = { username: '', blocked: true };
+      renderAccountsBanner();
+      showToast(`${PLATFORMS[platform].name}: ${msg.reason}`, 'warn');
+    } else if (msg.type === 'oauth_error') {
+      showToast(`Failed to connect ${PLATFORMS[platform].name}`, 'error');
+    }
+  }
+  window.addEventListener('message', onMessage);
+}
+
+async function disconnectPlatform(platform) {
+  delete state.connectedAccounts[platform];
+  renderAccountsBanner();
+  renderScoreCards();
+  try {
+    await apiFetch(`/auth/${platform}`, { method: 'DELETE' });
+  } catch { /* non-fatal */ }
+}
+
+// ---- ACCOUNTS BANNER ----
+function renderAccountsBanner() {
+  const grid = $('accounts-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const ALL = ['instagram', 'tiktok', 'twitter', 'youtube', 'linkedin', 'facebook'];
+  ALL.forEach(pid => {
+    const p    = PLATFORMS[pid];
+    const conn = state.connectedAccounts[pid];
+    const isConnected = conn && !conn.blocked;
+    const isBlocked   = conn && conn.blocked;
+
+    const card = document.createElement('div');
+    card.className = `account-card${isConnected ? ' connected' : ''}${isBlocked ? ' blocked' : ''}`;
+    card.innerHTML = `
+      <div class="account-platform-icon">${p.icon}</div>
+      <div class="account-platform-name">${p.name}</div>
+      ${isConnected
+        ? `<div class="account-username">@${conn.username}</div>
+           <button class="btn-disconnect" data-platform="${pid}">Disconnect</button>`
+        : isBlocked
+          ? `<div class="account-blocked-msg">Requires app approval</div>
+             <button class="btn-connect-blocked" disabled>Coming soon</button>`
+          : `<button class="btn-connect" data-platform="${pid}">Connect</button>`
+      }
+    `;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('.btn-connect').forEach(btn => {
+    btn.addEventListener('click', () => startOAuthFlow(btn.dataset.platform));
+  });
+  grid.querySelectorAll('.btn-disconnect').forEach(btn => {
+    btn.addEventListener('click', () => disconnectPlatform(btn.dataset.platform));
+  });
 }
 
 // ---- PIPELINE ANIMATION ----
@@ -144,9 +258,7 @@ async function onAnalyze() {
 
     if (state.backendLive) {
       // ---- REAL BACKEND CALL ----
-      // Backend picks platforms based on "all" or single
-      // We always send "all" and filter on our end
-      const res = await fetch(`${API_BASE}/score`, {
+      const res = await apiFetch('/score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -167,6 +279,12 @@ async function onAnalyze() {
 
       data = await res.json();
       completeStep(stepAI);
+
+      // Merge connected account info returned by the score endpoint
+      if (data.connected) {
+        state.connectedAccounts = { ...state.connectedAccounts, ...data.connected };
+        renderAccountsBanner();
+      }
     } else {
       // ---- MOCK FALLBACK ----
       await delay(700);
@@ -206,7 +324,6 @@ async function onAnalyze() {
     console.error('Analysis failed:', err);
     loadingSection.classList.add('hidden');
 
-    // Fall back to mock
     state.backendLive = false;
     apiDot.className = 'status-dot mock';
     apiStatusText.textContent = 'Mock Mode (error)';
@@ -257,7 +374,6 @@ function renderRuleFlags() {
   rulesList.innerHTML = '';
   const res = state.results.results || {};
 
-  // Collect all rule_flags across platforms
   const allFlags = [];
   Object.entries(res).forEach(([pid, data]) => {
     (data.rule_flags || []).forEach(msg => {
@@ -285,7 +401,7 @@ function renderRuleFlags() {
 function renderScoreCards() {
   scoreGrid.innerHTML = '';
   detailPanel.classList.add('hidden');
-  const res = state.results.results || {};
+  const res = state.results?.results || {};
 
   state.platforms.forEach(pid => {
     const data = res[pid];
@@ -307,14 +423,34 @@ function renderScoreCards() {
 
     const score = data.overall_score || 0;
     const color = score >= 70 ? 'var(--green)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
+    const conn  = state.connectedAccounts[pid];
+    const isConnected = conn && !conn.blocked;
+    const isBlocked   = conn && conn.blocked;
+
+    const publishBtnHtml = isConnected
+      ? `<button class="btn-publish" data-platform="${pid}">Publish</button>`
+      : isBlocked
+        ? `<button class="btn-publish-soon" disabled>Publish — Coming soon</button>`
+        : '';
 
     card.className = 'score-card';
     card.innerHTML = `
       <div class="score-platform-name">${p.name}</div>
       <div class="score-number" style="color:${color}">${score}</div>
       <div class="score-label">out of 100</div>
+      ${publishBtnHtml}
     `;
+
     card.addEventListener('click', () => showDetail(pid));
+
+    const pbtn = card.querySelector('.btn-publish');
+    if (pbtn) {
+      pbtn.addEventListener('click', e => {
+        e.stopPropagation();
+        onPublish(pid);
+      });
+    }
+
     scoreGrid.appendChild(card);
   });
 }
@@ -324,9 +460,8 @@ function showDetail(pid) {
   const data = state.results.results[pid];
   if (!data || data.error) return;
 
-  // highlight active
+  // highlight active card
   scoreGrid.querySelectorAll('.score-card').forEach(c => c.classList.remove('active'));
-  // find the right card
   const cards = scoreGrid.querySelectorAll('.score-card:not(.error-card)');
   const activePlatforms = state.platforms.filter(pp => {
     const d = state.results.results[pp];
@@ -338,7 +473,7 @@ function showDetail(pid) {
   $('detail-platform-name').textContent = p.name;
   $('detail-score-big').textContent = data.overall_score || 0;
 
-  // ---- Breakdown bars (scores are 0-20, display as /20) ----
+  // ---- Breakdown bars ----
   const breakdownEl = $('detail-breakdown');
   breakdownEl.innerHTML = '<div class="section-label">Score Breakdown</div>';
 
@@ -376,7 +511,7 @@ function showDetail(pid) {
     hashEl.innerHTML = '';
   }
 
-  // ---- Strengths + Weaknesses as suggestions ----
+  // ---- Strengths + Weaknesses ----
   const suggestEl = $('detail-suggestions');
   suggestEl.innerHTML = '<div class="section-label">AI Analysis</div>';
 
@@ -397,9 +532,34 @@ function showDetail(pid) {
     `;
   });
 
+  // ---- Publish row ----
+  const publishRow = $('detail-publish-row');
+  if (publishRow) {
+    const conn = state.connectedAccounts[pid];
+    const isConnected = conn && !conn.blocked;
+    const isBlocked   = conn && conn.blocked;
+
+    if (isConnected) {
+      publishRow.innerHTML = `
+        <div class="detail-publish-row">
+          <button class="btn-publish-detail" id="btn-publish-detail-${pid}">
+            Publish to ${p.name}
+          </button>
+          <span class="publish-note">Posts your original draft (or AI rewrite)</span>
+        </div>
+      `;
+      const dpBtn = $(`btn-publish-detail-${pid}`);
+      if (dpBtn) dpBtn.addEventListener('click', () => onPublish(pid));
+    } else if (isBlocked) {
+      publishRow.innerHTML = `<div class="blocked-publish-note">Publishing to ${p.name} — coming soon (requires app approval)</div>`;
+    } else {
+      publishRow.innerHTML = '';
+    }
+  }
+
   // ---- Rewrite ----
   const rewritePanel = $('detail-rewrite');
-  const rewriteText = $('rewrite-text');
+  const rewriteText  = $('rewrite-text');
   if (data.rewritten) {
     rewritePanel.classList.remove('hidden');
     rewriteText.textContent = data.rewritten;
@@ -440,6 +600,47 @@ function renderSchedule() {
   });
 }
 
+// ---- ONE-CLICK PUBLISH ----
+async function onPublish(platform) {
+  const data = state.results?.results?.[platform];
+  if (!data) return;
+
+  const useRewrite = data.rewritten
+    && confirm(`Publish the AI-rewritten version to ${PLATFORMS[platform].name}?\n\nOK = AI rewrite\nCancel = your original draft`);
+  const textToPost = useRewrite ? data.rewritten : state.draft;
+
+  // Disable all publish buttons for this platform while posting
+  const btns = [
+    scoreGrid.querySelector(`.btn-publish[data-platform="${platform}"]`),
+    $(`btn-publish-detail-${platform}`),
+  ].filter(Boolean);
+  btns.forEach(b => { b.disabled = true; b.textContent = 'Publishing…'; });
+
+  try {
+    const res = await apiFetch('/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, text: textToPost }),
+    });
+
+    if (res.ok) {
+      const result = await res.json();
+      showToast(`Posted to ${PLATFORMS[platform].name}!${result.url ? ' View →' : ''}`);
+      btns.forEach(b => {
+        b.textContent = 'Published ✓';
+        b.style.background = 'var(--green)';
+      });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast(`Publish failed: ${err.detail || 'Unknown error'}`, 'error');
+      btns.forEach(b => { b.disabled = false; b.textContent = 'Publish'; b.style.background = ''; });
+    }
+  } catch {
+    showToast('Network error — publish failed', 'error');
+    btns.forEach(b => { b.disabled = false; b.textContent = 'Publish'; b.style.background = ''; });
+  }
+}
+
 // =============================
 // HELPERS
 // =============================
@@ -448,6 +649,20 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 function rand(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function fmtNum(n) { if (n == null) return '—'; return n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
+
+function showToast(msg, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => toast.classList.add('toast-visible'));
+  });
+  setTimeout(() => {
+    toast.classList.remove('toast-visible');
+    setTimeout(() => toast.remove(), 300);
+  }, 3200);
+}
 
 // =============================
 // MOCK DATA (offline fallback)
@@ -464,7 +679,6 @@ function generateMockData(draft, platforms) {
   const benchmarks = {};
 
   platforms.forEach(pid => {
-    // Mock benchmarks
     benchmarks[pid] = {
       avg_likes: rand(200, 800),
       avg_comments: rand(10, 60),
@@ -473,13 +687,11 @@ function generateMockData(draft, platforms) {
       post_count: rand(5, 10),
     };
 
-    // Mock rule flags
     const flags = [];
     if (pid === 'twitter' && len > 280) flags.push(`Over character limit (${len}/280 chars)`);
     if (pid === 'linkedin' && hashCount > 5) flags.push(`Too many hashtags for LinkedIn (${hashCount}) — max 3-5`);
     if (len < 20) flags.push('Post is too short — add more context');
 
-    // Mock AI score
     const base = clamp(35 + (hasCTA ? 12 : 0) + (hasEmoji ? 5 : 0) + Math.min(wordCount * 0.8, 15) + (hashCount > 0 ? 8 : 0), 20, 95);
     const overall = clamp(base + rand(-10, 10), 15, 98);
 
