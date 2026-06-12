@@ -45,6 +45,7 @@ const state = {
   platforms: ['twitter', 'linkedin', 'facebook'],
   topic: 'science innovation',
   goal: 'reach',
+  persona: 'general',  // "general" | "applicants" | "viewers" | "sponsors"
   results: null,   // { results, benchmarks, recommendation }
   backendLive: false,
   connectedAccounts: {},   // { platform: { username, blocked } }
@@ -109,6 +110,7 @@ function init() {
 
   topicInput.addEventListener('input', () => { state.topic = topicInput.value; });
   goalSelect.addEventListener('change', () => { state.goal = goalSelect.value; });
+  $('persona-select')?.addEventListener('change', e => { state.persona = e.target.value; });
 
   btnAnalyze.addEventListener('click', onAnalyze);
   btnClear.addEventListener('click', () => {
@@ -394,6 +396,7 @@ async function onAnalyze() {
           platform: 'all',
           topic: state.topic,
           goal: state.goal,
+          persona: state.persona,
         }),
       });
 
@@ -723,20 +726,47 @@ function showDetail(pid) {
     }
   }
 
-  // ---- Rewrite ----
+  // ---- Rewrite (EN ⇄ AR toggle + re-score) ----
   const rewritePanel = $('detail-rewrite');
   const rewriteText  = $('rewrite-text');
   if (data.rewritten) {
     rewritePanel.classList.remove('hidden');
-    rewriteText.textContent = data.rewritten;
+
+    const langToggle = $('rewrite-lang-toggle');
+    let showAlt = false;
+    const renderRewriteLang = () => {
+      const text = showAlt ? data.rewritten_alt : data.rewritten;
+      rewriteText.textContent = text;
+      applyDir(rewriteText, text);
+      if (data.rewritten_alt && langToggle) {
+        langToggle.classList.remove('hidden');
+        const nextText = showAlt ? data.rewritten : data.rewritten_alt;
+        langToggle.textContent = isArabic(nextText) ? 'عربي' : 'EN';
+      } else if (langToggle) {
+        langToggle.classList.add('hidden');
+      }
+    };
+    if (langToggle) langToggle.onclick = () => { showAlt = !showAlt; renderRewriteLang(); };
+    renderRewriteLang();
+
+    // Copy whatever language version is currently visible
     $('copy-rewrite-btn').onclick = () => {
-      navigator.clipboard.writeText(data.rewritten).then(() => {
+      navigator.clipboard.writeText(rewriteText.textContent).then(() => {
         const btn = $('copy-rewrite-btn');
         btn.textContent = 'Copied!';
         btn.style.background = 'var(--green)'; btn.style.color = '#fff';
         setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = ''; btn.style.color = ''; }, 1500);
       });
     };
+
+    // Re-score: panel is shared across platforms — reset, then restore cached result
+    const rescoreBtn = $('btn-rescore');
+    if (rescoreBtn) {
+      rescoreBtn.disabled = false;
+      rescoreBtn.textContent = '⚡ Score this version';
+      rescoreBtn.onclick = () => onRescoreRewrite(pid);
+    }
+    renderRescoreResult(data._rescore);
   } else {
     rewritePanel.classList.add('hidden');
   }
@@ -770,25 +800,32 @@ function showDetail(pid) {
   detailPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function renderAudienceTabs(variants, activeIdx) {
+function renderAudienceTabs(variants, activeIdx, showAlt = false) {
   audienceTabs.innerHTML = variants.map((v, i) => `
     <button class="audience-tab${i === activeIdx ? ' active' : ''}" data-idx="${i}">${v.region} · ${v.audience}</button>
   `).join('');
 
   audienceTabs.querySelectorAll('.audience-tab').forEach(btn => {
-    btn.addEventListener('click', () => renderAudienceTabs(variants, Number(btn.dataset.idx)));
+    btn.addEventListener('click', () => renderAudienceTabs(variants, Number(btn.dataset.idx), showAlt));
   });
 
   const v = variants[activeIdx];
+  const text = (showAlt && v.rewritten_alt) ? v.rewritten_alt : v.rewritten;
+  const nextText = showAlt ? v.rewritten : v.rewritten_alt;
   audienceBody.innerHTML = `
     <div class="audience-rewrite-wrap">
+      ${v.rewritten_alt ? `<button class="copy-btn audience-lang-btn">${isArabic(nextText) ? 'عربي' : 'EN'}</button>` : ''}
       <button class="copy-btn audience-copy-btn">Copy</button>
-      <div class="audience-rewrite">${v.rewritten}</div>
+      <div class="audience-rewrite">${text}</div>
     </div>
     <div class="audience-rationale">${v.rationale}</div>
   `;
+  applyDir(audienceBody.querySelector('.audience-rewrite'), text);
+  audienceBody.querySelector('.audience-lang-btn')?.addEventListener('click', () => {
+    renderAudienceTabs(variants, activeIdx, !showAlt);
+  });
   audienceBody.querySelector('.audience-copy-btn').addEventListener('click', e => {
-    navigator.clipboard.writeText(v.rewritten).then(() => {
+    navigator.clipboard.writeText(text).then(() => {
       const btn = e.target;
       btn.textContent = 'Copied!';
       btn.style.background = 'var(--green)'; btn.style.color = '#fff';
@@ -859,6 +896,73 @@ async function onPublish(platform) {
   }
 }
 
+// ---- RE-SCORE THE REWRITE ----
+async function onRescoreRewrite(pid) {
+  const data = state.results?.results?.[pid];
+  if (!data) return;
+
+  const btn = $('btn-rescore');
+  const oldScore = data.overall_score || 0;
+  const visibleRewrite = $('rewrite-text').textContent;
+
+  btn.disabled = true;
+  btn.textContent = 'Scoring…';
+
+  let newScore = null;
+  try {
+    if (state.backendLive) {
+      const res = await apiFetch('/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          draft: visibleRewrite,
+          platform: pid,
+          topic: state.topic,
+          goal: state.goal,
+          persona: state.persona,
+        }),
+      });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      // Response stays local — never assign to state.results (single-platform
+      // response would wipe the other platforms and the recommendation).
+      const json = await res.json();
+      newScore = json.results?.[pid]?.overall_score;
+      if (newScore == null) throw new Error('No score in response');
+    } else {
+      await delay(900);
+      newScore = clamp(oldScore + rand(8, 25), oldScore + 1, 98);
+    }
+  } catch {
+    await delay(300);
+    newScore = clamp(oldScore + rand(8, 25), oldScore + 1, 98);
+    showToast('Using mock re-score (backend error)', 'warn');
+  }
+
+  data._rescore = { old: oldScore, new: newScore };
+  renderRescoreResult(data._rescore);
+
+  btn.disabled = false;
+  btn.textContent = '⚡ Score this version';
+}
+
+function renderRescoreResult(rs) {
+  const el = $('rescore-result');
+  if (!el) return;
+  if (!rs) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  const diff = rs.new - rs.old;
+  const sign = diff >= 0 ? '+' : '';
+  el.innerHTML = `
+    <span class="rescore-label">Rewrite impact:</span>
+    <span class="rescore-scores">${rs.old} → <strong>${rs.new}</strong></span>
+    <span class="delta ${diff >= 0 ? 'up' : 'down'}">${sign}${diff}</span>
+  `;
+  el.classList.remove('hidden');
+}
+
 // =============================
 // HELPERS
 // =============================
@@ -867,6 +971,17 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 function rand(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function fmtNum(n) { if (n == null) return '—'; return n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
+function isArabic(text) { return /[؀-ۿ]/.test(text || ''); }
+function applyDir(el, text) {
+  if (!el) return;
+  if (isArabic(text)) {
+    el.setAttribute('dir', 'rtl');
+    el.classList.add('rtl');
+  } else {
+    el.removeAttribute('dir');
+    el.classList.remove('rtl');
+  }
+}
 
 function showToast(msg, type = 'success') {
   const toast = document.createElement('div');
@@ -892,6 +1007,9 @@ function generateMockData(draft, platforms) {
   const hasEmoji = /[\u{1F600}-\u{1F9FF}]/u.test(draft);
   const hasCTA = /apply|click|visit|sign up|watch|follow|share|link|subscribe/i.test(draft);
   const wordCount = draft.split(/\s+/).length;
+  const draftIsArabic = isArabic(draft);
+  const MOCK_AR_REWRITE = '🚀 [وضع تجريبي] هنا تظهر النسخة العربية المعاد كتابتها بالذكاء الاصطناعي — شغّل الخادم لرؤية إعادة الكتابة الحقيقية المخصصة لكل منصة.';
+  const MOCK_EN_REWRITE = '🚀 [Mock] This is where the English adaptation would appear — connect the backend for the real culturally adapted version.';
 
   const results = {};
   const benchmarks = {};
@@ -934,7 +1052,11 @@ function generateMockData(draft, platforms) {
         ? ['Missing a clear call to action', 'Could use more specific language']
         : ['Hook could be stronger — lead with a question or bold stat'],
       rule_flags: flags,
-      rewritten: `🚀 This is where the AI-rewritten version would appear.\n\nIn live mode, GPT-4o-mini rewrites your draft optimized for ${PLATFORMS[pid]?.name || pid}, with the right tone, length, and CTA.\n\n[Mock mode — connect the backend to see real rewrites]`,
+      rewritten: draftIsArabic
+        ? MOCK_AR_REWRITE
+        : `🚀 This is where the AI-rewritten version would appear.\n\nIn live mode, GPT-4o-mini rewrites your draft optimized for ${PLATFORMS[pid]?.name || pid}, with the right tone, length, and CTA.\n\n[Mock mode — connect the backend to see real rewrites]`,
+      rewritten_alt: draftIsArabic ? MOCK_EN_REWRITE : MOCK_AR_REWRITE,
+      draft_language: draftIsArabic ? 'ar' : 'en',
       best_time_to_post: ['Tue 6pm GST', 'Wed 10am GST', 'Thu 7pm GST', 'Fri 8pm GST', 'Mon 1pm GST', 'Wed 3pm GST'][Object.keys(PLATFORMS).indexOf(pid)] || 'Wed 6pm GST',
       hashtag_suggestions: ['#StarsOfScience', '#Innovation', '#Qatar', '#MENA', '#ArabInventors'].slice(0, rand(3, 5)),
       algorithm_decoder: {
@@ -946,9 +1068,9 @@ function generateMockData(draft, platforms) {
         ],
       },
       audience_variants: [
-        { region: '🇶🇦🇦🇪 Qatar & UAE', audience: 'Gulf Youth (18-24)', rewritten: `🌟 [Mock] ${draft.slice(0, 80)}${draft.length > 80 ? '…' : ''} — rewritten for Gulf youth.`, rationale: 'Youthful tone and emojis resonate with this audience.' },
-        { region: '🇸🇦 Saudi Arabia', audience: 'STEM Students & Young Professionals', rewritten: `🔬 [Mock] ${draft.slice(0, 80)}${draft.length > 80 ? '…' : ''} — rewritten for Saudi STEM audience.`, rationale: 'Frames the post around STEM relevance and career growth.' },
-        { region: '🇪🇬 Egypt & Levant', audience: 'Parents & Educators', rewritten: `📚 [Mock] ${draft.slice(0, 80)}${draft.length > 80 ? '…' : ''} — rewritten for parents & educators.`, rationale: 'Speaks to families and the educational value of the program.' },
+        { region: '🇶🇦🇦🇪 Qatar & UAE', audience: 'Gulf Youth (18-24)', rewritten: `🌟 [Mock] ${draft.slice(0, 80)}${draft.length > 80 ? '…' : ''} — rewritten for Gulf youth.`, rewritten_alt: draftIsArabic ? MOCK_EN_REWRITE : '🌟 [وضع تجريبي] نسخة عربية مخصصة لشباب الخليج.', rationale: 'Youthful tone and emojis resonate with this audience.' },
+        { region: '🇸🇦 Saudi Arabia', audience: 'STEM Students & Young Professionals', rewritten: `🔬 [Mock] ${draft.slice(0, 80)}${draft.length > 80 ? '…' : ''} — rewritten for Saudi STEM audience.`, rewritten_alt: draftIsArabic ? MOCK_EN_REWRITE : '🔬 [وضع تجريبي] نسخة عربية مخصصة لطلاب العلوم في السعودية.', rationale: 'Frames the post around STEM relevance and career growth.' },
+        { region: '🇪🇬 Egypt & Levant', audience: 'Parents & Educators', rewritten: `📚 [Mock] ${draft.slice(0, 80)}${draft.length > 80 ? '…' : ''} — rewritten for parents & educators.`, rewritten_alt: draftIsArabic ? MOCK_EN_REWRITE : '📚 [وضع تجريبي] نسخة عربية مخصصة للأهالي والمعلمين.', rationale: 'Speaks to families and the educational value of the program.' },
       ],
     };
   });
@@ -1004,6 +1126,7 @@ async function onLoadInsights() {
   loadingEl.classList.remove('hidden');
   gridEl.innerHTML = '';
   overallEl.classList.add('hidden');
+  $('insights-growth')?.classList.add('hidden');
 
   // reset loading steps
   [stepFetch, stepAI].forEach(el => {
@@ -1065,6 +1188,7 @@ async function onLoadInsights() {
 function renderInsights(data) {
   const gridEl    = $('insights-grid');
   const overallEl = $('insights-overall');
+  const growthEl  = $('insights-growth');
   gridEl.innerHTML = '';
 
   if (data.overall_strategy) {
@@ -1075,6 +1199,43 @@ function renderInsights(data) {
       </div>
     `;
     overallEl.classList.remove('hidden');
+  }
+
+  // ---- Real Growth vs. Noise ----
+  if (growthEl && data.metrics) {
+    const rows = Object.entries(PLATFORMS).map(([pid, p]) => {
+      const m = data.metrics[pid];
+      if (!m) return '';
+      const verdict = data.platforms?.[pid]?.growth_verdict || '';
+      if (!m.has_data) {
+        return `
+          <div class="growth-row no-data">
+            <span class="growth-platform">${p.icon} ${p.name}</span>
+            <span class="growth-verdict">No data available for this account</span>
+          </div>
+        `;
+      }
+      return `
+        <div class="growth-row">
+          <span class="growth-platform">${p.icon} ${p.name}</span>
+          <span class="growth-reach">${fmtNum(m.avg_likes)} <small>avg likes</small></span>
+          <span class="engagement-badge ${m.engagement_quality}">${m.engagement_quality} engagement</span>
+          <span class="growth-verdict">${verdict}</span>
+        </div>
+      `;
+    }).join('');
+
+    growthEl.innerHTML = `
+      <div class="growth-card">
+        <div class="growth-title">📊 Real Growth vs. Noise</div>
+        ${data.real_growth_summary ? `<div class="growth-summary">${data.real_growth_summary}</div>` : ''}
+        <div class="growth-rows">${rows}</div>
+      </div>
+    `;
+    growthEl.classList.remove('hidden');
+  } else if (growthEl) {
+    growthEl.classList.add('hidden');
+    growthEl.innerHTML = '';
   }
 
   const platformsData = data.platforms || {};
@@ -1105,7 +1266,19 @@ function renderInsights(data) {
 
 function generateMockInsights() {
   const platforms = {};
+  const metrics = {};
   Object.entries(PLATFORMS).forEach(([pid, p]) => {
+    const avgLikes = rand(200, 2500);
+    const avgComments = rand(5, 80);
+    const commentRate = avgLikes > 0 ? Math.round((avgComments / avgLikes) * 10000) / 100 : 0;
+    const quality = commentRate >= 5 ? 'high' : commentRate >= 1 ? 'medium' : 'low';
+    metrics[pid] = {
+      avg_likes: avgLikes,
+      avg_comments: avgComments,
+      comment_rate: commentRate,
+      engagement_quality: quality,
+      has_data: true,
+    };
     platforms[pid] = {
       headline: `[Mock] ${p.name} rewards posts with strong visual hooks and consistent posting cadence`,
       patterns: [
@@ -1114,11 +1287,16 @@ function generateMockInsights() {
         '[Mock] Science curiosity hooks outperform announcement posts',
       ],
       recommendation: `[Mock] Open every ${p.name} post with a surprising stat or question.`,
+      growth_verdict: quality === 'low'
+        ? `[Mock] Big reach but shallow — only ${commentRate} comments per 100 likes. Vanity numbers.`
+        : `[Mock] This audience talks back — ${commentRate} comments per 100 likes is a real community signal.`,
     };
   });
   return {
     platforms,
+    metrics,
     overall_strategy: '[Mock] Across all platforms, curiosity-driven hooks and clear CTAs drive the most consistent engagement. Post consistently on Tue/Wed in the Gulf evening window (6–9pm GST).',
+    real_growth_summary: '[Mock] The real engaged community lives where the comment rate is highest — chase conversations, not just impressions. Big like counts with silent comment sections are vanity reach.',
   };
 }
 

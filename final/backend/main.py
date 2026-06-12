@@ -30,6 +30,7 @@ class ScoreRequest(BaseModel):
     topic: str = "science innovation"
     media_type: str = "text"
     goal: str = "reach"  # "reach" | "engagement" | "conversions"
+    persona: str = "general"  # "general" | "applicants" | "viewers" | "sponsors"
 
 class PublishRequest(BaseModel):
     platform: str
@@ -51,7 +52,7 @@ def health():
 def score(req: ScoreRequest, x_session_id: Optional[str] = Header(default=None)):
     if req.platform == "all":
         raw_results = score_all_platforms(
-            req.draft, req.topic, req.media_type, session_id=x_session_id
+            req.draft, req.topic, req.media_type, session_id=x_session_id, persona=req.persona
         )
     else:
         user_data = None
@@ -67,7 +68,7 @@ def score(req: ScoreRequest, x_session_id: Optional[str] = Header(default=None))
                     "avg_comments": avg_comments,
                     "username": ui.get("username") or ui.get("name", ""),
                 }
-        raw_results = {req.platform: score_post(req.draft, req.platform, req.topic, req.media_type, user_data=user_data)}
+        raw_results = {req.platform: score_post(req.draft, req.platform, req.topic, req.media_type, user_data=user_data, persona=req.persona)}
 
     benchmarks = {}
     results = {}
@@ -89,7 +90,7 @@ def score(req: ScoreRequest, x_session_id: Optional[str] = Header(default=None))
                     "blocked": sess_plat.get("blocked", False),
                 }
 
-    recommendation = recommend_publishing(results, benchmarks, req.goal) if req.platform == "all" else {}
+    recommendation = recommend_publishing(results, benchmarks, req.goal, persona=req.persona) if req.platform == "all" else {}
 
     return {"results": results, "benchmarks": benchmarks, "connected": connected, "recommendation": recommendation}
 

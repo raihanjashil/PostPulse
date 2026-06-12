@@ -54,7 +54,7 @@
 
         <div class="input-area">
           <div class="input-box">
-            <textarea id="draft-input" placeholder="Paste your draft post here...&#10;&#10;e.g. &quot;Applications for Stars of Science Season 17 are now open! Young Arab innovators — this is your chance to turn your idea into reality. Apply now at starsofscience.com&quot;"></textarea>
+            <textarea id="draft-input" dir="auto" placeholder="Paste your draft post here...&#10;&#10;e.g. &quot;Applications for Stars of Science Season 17 are now open! Young Arab innovators — this is your chance to turn your idea into reality. Apply now at starsofscience.com&quot;"></textarea>
             <div class="input-meta">
               <span class="char-count"><span id="char-count">0</span> chars</span>
               <div class="input-actions">
@@ -77,6 +77,15 @@
                 <option value="reach">📈 Maximize Reach</option>
                 <option value="engagement">💬 Maximize Engagement</option>
                 <option value="conversions">🎯 Maximize Conversions</option>
+              </select>
+            </div>
+            <div class="extra-input-group">
+              <label class="extra-label" for="persona-select">Target audience</label>
+              <select id="persona-select">
+                <option value="general">🌍 General Audience</option>
+                <option value="applicants">🎓 Potential Applicants</option>
+                <option value="viewers">📺 Viewers &amp; Fans</option>
+                <option value="sponsors">🤝 Sponsors &amp; Partners</option>
               </select>
             </div>
           </div>
@@ -166,8 +175,13 @@
           <div class="detail-rewrite hidden" id="detail-rewrite">
             <div class="rewrite-header">
               <span class="rewrite-title">✍️ AI-Rewritten Version</span>
-              <button class="copy-btn" id="copy-rewrite-btn">Copy</button>
+              <div class="rewrite-actions">
+                <button class="copy-btn hidden" id="rewrite-lang-toggle">عربي</button>
+                <button class="copy-btn" id="btn-rescore">⚡ Score this version</button>
+                <button class="copy-btn" id="copy-rewrite-btn">Copy</button>
+              </div>
             </div>
+            <div id="rescore-result" class="rescore-result hidden"></div>
             <div class="rewrite-text" id="rewrite-text"></div>
           </div>
 
@@ -200,28 +214,32 @@
       <section class="insights-section">
         <div class="results-header">
           <h2>Account Intelligence</h2>
-          <p class="results-sub">Real engagement patterns decoded from Stars of Science accounts — or plug in your own</p>
+          <p class="results-sub">Real engagement patterns decoded from Stars of Science accounts — or benchmark a competitor</p>
+        </div>
+        <div class="competitor-bench-header">
+          <span class="competitor-bench-title">🏁 Competitor Benchmarking</span>
+          <span class="competitor-bench-sub">Compare any account against Stars of Science — leave fields blank to analyze the SoS defaults</span>
         </div>
         <div class="insights-inputs">
           <div class="extra-input-group">
             <label class="extra-label" for="insights-instagram">📸 Instagram handle</label>
-            <input type="text" id="insights-instagram" placeholder="e.g. starsofsciencetv">
+            <input type="text" id="insights-instagram" placeholder="competitor handle, e.g. nasa">
           </div>
           <div class="extra-input-group">
             <label class="extra-label" for="insights-tiktok">🎵 TikTok handle</label>
-            <input type="text" id="insights-tiktok" placeholder="e.g. starsofscience">
+            <input type="text" id="insights-tiktok" placeholder="competitor handle, e.g. nasa">
           </div>
           <div class="extra-input-group">
             <label class="extra-label" for="insights-twitter">🐦 X / Twitter handle</label>
-            <input type="text" id="insights-twitter" placeholder="e.g. starsofscience">
+            <input type="text" id="insights-twitter" placeholder="competitor handle, e.g. NASA">
           </div>
           <div class="extra-input-group">
             <label class="extra-label" for="insights-youtube">▶️ YouTube channel ID</label>
-            <input type="text" id="insights-youtube" placeholder="e.g. UCQ36ixRyMdlCuQDeMIJ8lqg">
+            <input type="text" id="insights-youtube" placeholder="competitor channel ID">
           </div>
           <div class="extra-input-group">
             <label class="extra-label" for="insights-facebook">📘 Facebook page URL</label>
-            <input type="text" id="insights-facebook" placeholder="e.g. https://facebook.com/yourpage">
+            <input type="text" id="insights-facebook" placeholder="competitor page URL">
           </div>
         </div>
         <button class="btn-primary" id="btn-load-insights">
@@ -244,6 +262,7 @@
           </div>
         </div>
         <div id="insights-overall" class="insights-overall hidden"></div>
+        <div id="insights-growth" class="insights-growth hidden"></div>
         <div id="insights-grid" class="insights-grid"></div>
       </section>
     </div><!-- /tab-insights -->
