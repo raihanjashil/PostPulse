@@ -43,6 +43,78 @@ function ScoreBar({ label, value, max = 20 }) {
   );
 }
 
+function InsightCard({ platform, data }) {
+  if (!data) return null;
+  return (
+    <div style={{
+      background: "#1a1a1a",
+      border: `1px solid ${PLATFORM_COLORS[platform]}44`,
+      borderRadius: 12,
+      padding: 20,
+    }}>
+      <div style={{ color: PLATFORM_COLORS[platform], fontWeight: 700, fontSize: 16, marginBottom: 10 }}>
+        {PLATFORM_ICONS[platform]} {platform.charAt(0).toUpperCase() + platform.slice(1)}
+      </div>
+
+      {data.headline && (
+        <div style={{ color: "#fff", fontSize: 14, fontWeight: 600, marginBottom: 12, lineHeight: 1.5 }}>
+          {data.headline}
+        </div>
+      )}
+
+      {data.patterns?.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 12, marginBottom: 4 }}>🔍 PATTERNS DECODED</div>
+          {data.patterns.map((p, i) => <div key={i} style={{ color: "#ccc", fontSize: 13, marginBottom: 2 }}>• {p}</div>)}
+        </div>
+      )}
+
+      {data.recommendation && (
+        <div style={{ background: "#0f2f0f", border: "1px solid #22c55e44", borderRadius: 8, padding: 10 }}>
+          <div style={{ color: "#22c55e", fontWeight: 700, fontSize: 12, marginBottom: 4 }}>💡 RECOMMENDATION</div>
+          <div style={{ color: "#dcfce7", fontSize: 13, lineHeight: 1.5 }}>{data.recommendation}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VideoFrameCard({ frame, isBest }) {
+  const score = frame.score ?? 0;
+  const scoreColor = score >= 7 ? "#22c55e" : score >= 4 ? "#f59e0b" : "#ef4444";
+  return (
+    <div style={{
+      background: "#1a1a1a",
+      border: isBest ? "2px solid #00b894" : "1px solid #333",
+      borderRadius: 12,
+      padding: 14,
+      display: "flex",
+      gap: 14,
+      flexWrap: "wrap"
+    }}>
+      {frame.thumbnail && (
+        <img src={frame.thumbnail} alt={`Frame at ${frame.timestamp}s`}
+          style={{ width: 120, height: "auto", borderRadius: 8, flexShrink: 0 }} />
+      )}
+      <div style={{ flex: 1, minWidth: 180 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span style={{ color: "#888", fontSize: 12, fontWeight: 700 }}>
+            ⏱ {frame.timestamp}s {isBest && <span style={{ color: "#00b894" }}>· 🏆 Best Thumbnail</span>}
+          </span>
+          <span style={{
+            background: scoreColor + "22", color: scoreColor, fontWeight: 800,
+            fontSize: 14, borderRadius: 99, padding: "2px 10px"
+          }}>{score}/10</span>
+        </div>
+        {frame.feedback && <div style={{ color: "#ccc", fontSize: 13, marginBottom: 4 }}>{frame.feedback}</div>}
+        {frame.suggestion && (
+          <div style={{ color: "#86efac", fontSize: 13 }}>💡 {frame.suggestion}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PlatformCard({ platform, data }) {
   const [expanded, setExpanded] = useState(false);
   if (!data) return null;
@@ -64,7 +136,7 @@ function PlatformCard({ platform, data }) {
       padding: 20,
       cursor: "pointer"
     }} onClick={() => setExpanded(!expanded)}>
-      
+
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ color: PLATFORM_COLORS[platform], fontWeight: 700, fontSize: 16 }}>
@@ -168,6 +240,7 @@ function PlatformCard({ platform, data }) {
 }
 
 export default function App() {
+  const [tab, setTab] = useState("scorer");
   const [draft, setDraft] = useState("");
   const [topic, setTopic] = useState("science innovation");
   const [platform, setPlatform] = useState("all");
@@ -175,6 +248,15 @@ export default function App() {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [insights, setInsights] = useState(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState("");
+
+  const [videoFile, setVideoFile] = useState(null);
+  const [videoResult, setVideoResult] = useState(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoError, setVideoError] = useState("");
 
   const handleScore = async () => {
     if (!draft.trim()) return;
@@ -195,6 +277,41 @@ export default function App() {
     setLoading(false);
   };
 
+  const handleInsights = async () => {
+    setInsightsLoading(true);
+    setInsightsError("");
+    setInsights(null);
+    try {
+      const res = await fetch("http://localhost:8000/insights");
+      const data = await res.json();
+      setInsights(data);
+    } catch (e) {
+      setInsightsError("Could not connect to backend. Make sure FastAPI is running.");
+    }
+    setInsightsLoading(false);
+  };
+
+  const handleAnalyzeVideo = async () => {
+    if (!videoFile) return;
+    setVideoLoading(true);
+    setVideoError("");
+    setVideoResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", videoFile);
+      formData.append("topic", topic);
+      const res = await fetch("http://localhost:8000/analyze-video", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      setVideoResult(data);
+    } catch (e) {
+      setVideoError("Could not connect to backend. Make sure FastAPI is running.");
+    }
+    setVideoLoading(false);
+  };
+
   return (
     <div style={{
       minHeight: "100vh", background: "#0d0d0d", color: "#fff",
@@ -213,8 +330,42 @@ export default function App() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 32 }}>
+        <button
+          onClick={() => setTab("scorer")}
+          style={{
+            background: tab === "scorer" ? "linear-gradient(135deg, #00b894, #0984e3)" : "#1a1a1a",
+            color: "#fff", border: "1px solid #333", borderRadius: 99,
+            padding: "10px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer"
+          }}
+        >
+          🚀 Pre-Publish Scorer
+        </button>
+        <button
+          onClick={() => setTab("insights")}
+          style={{
+            background: tab === "insights" ? "linear-gradient(135deg, #00b894, #0984e3)" : "#1a1a1a",
+            color: "#fff", border: "1px solid #333", borderRadius: 99,
+            padding: "10px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer"
+          }}
+        >
+          🧠 Account Intelligence
+        </button>
+        <button
+          onClick={() => setTab("video")}
+          style={{
+            background: tab === "video" ? "linear-gradient(135deg, #00b894, #0984e3)" : "#1a1a1a",
+            color: "#fff", border: "1px solid #333", borderRadius: 99,
+            padding: "10px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer"
+          }}
+        >
+          🎬 Video Analyzer
+        </button>
+      </div>
+
       {/* Input */}
-      <div style={{
+      {tab === "scorer" && <div style={{
         background: "#1a1a1a", border: "1px solid #333",
         borderRadius: 16, padding: 24, maxWidth: 700, margin: "0 auto 32px"
       }}>
@@ -277,10 +428,10 @@ export default function App() {
         </button>
 
         {error && <div style={{ color: "#ef4444", marginTop: 12, fontSize: 13 }}>{error}</div>}
-      </div>
+      </div>}
 
       {/* Results */}
-      {results && (
+      {tab === "scorer" && results && (
         <div style={{ maxWidth: 700, margin: "0 auto" }}>
           <div style={{ color: "#888", fontSize: 13, marginBottom: 16, textAlign: "center" }}>
             Click any platform card to see full breakdown + rewrite
@@ -290,6 +441,144 @@ export default function App() {
               <PlatformCard key={plat} platform={plat} data={data} />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Account Intelligence */}
+      {tab === "insights" && (
+        <div style={{ maxWidth: 700, margin: "0 auto" }}>
+          <div style={{
+            background: "#1a1a1a", border: "1px solid #333",
+            borderRadius: 16, padding: 24, marginBottom: 24, textAlign: "center"
+          }}>
+            <div style={{ color: "#ccc", fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>
+              Decode what's actually driving engagement on Stars of Science's real accounts —
+              powered by live RapidAPI data across all 6 platforms.
+            </div>
+            <button
+              onClick={handleInsights}
+              disabled={insightsLoading}
+              style={{
+                width: "100%", padding: "14px",
+                background: insightsLoading ? "#333" : "linear-gradient(135deg, #00b894, #0984e3)",
+                color: "#fff", border: "none", borderRadius: 10,
+                fontSize: 16, fontWeight: 700, cursor: insightsLoading ? "not-allowed" : "pointer"
+              }}
+            >
+              {insightsLoading ? "⏳ Decoding the algorithm..." : "🧠 Decode My Account"}
+            </button>
+            {insightsError && <div style={{ color: "#ef4444", marginTop: 12, fontSize: 13 }}>{insightsError}</div>}
+          </div>
+
+          {insights && (
+            <>
+              {insights.overall_strategy && (
+                <div style={{
+                  background: "#1e3a5f", border: "1px solid #3b82f644", borderRadius: 12,
+                  padding: 18, marginBottom: 20
+                }}>
+                  <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>📊 OVERALL STRATEGY</div>
+                  <div style={{ color: "#dbeafe", fontSize: 14, lineHeight: 1.6 }}>{insights.overall_strategy}</div>
+                </div>
+              )}
+              <div style={{ display: "grid", gap: 16 }}>
+                {insights.platforms && Object.entries(insights.platforms).map(([plat, data]) => (
+                  <InsightCard key={plat} platform={plat} data={data} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Video Analyzer */}
+      {tab === "video" && (
+        <div style={{ maxWidth: 700, margin: "0 auto" }}>
+          <div style={{
+            background: "#1a1a1a", border: "1px solid #333",
+            borderRadius: 16, padding: 24, marginBottom: 24
+          }}>
+            <div style={{ color: "#ccc", fontSize: 14, marginBottom: 16, lineHeight: 1.6, textAlign: "center" }}>
+              Upload a video draft — AI samples frames across the timeline and flags which
+              shots are weak, which would make a great thumbnail, and what to fix before you post.
+            </div>
+
+            <input
+              type="file"
+              accept="video/*"
+              onChange={e => setVideoFile(e.target.files?.[0] || null)}
+              style={{
+                width: "100%", background: "#111", border: "1px solid #444",
+                borderRadius: 8, color: "#fff", padding: "10px 14px", fontSize: 13,
+                boxSizing: "border-box", marginBottom: 12
+              }}
+            />
+
+            <button
+              onClick={handleAnalyzeVideo}
+              disabled={videoLoading || !videoFile}
+              style={{
+                width: "100%", padding: "14px",
+                background: (videoLoading || !videoFile) ? "#333" : "linear-gradient(135deg, #00b894, #0984e3)",
+                color: "#fff", border: "none", borderRadius: 10,
+                fontSize: 16, fontWeight: 700, cursor: (videoLoading || !videoFile) ? "not-allowed" : "pointer"
+              }}
+            >
+              {videoLoading ? "⏳ Analyzing frames..." : "🎬 Analyze My Video"}
+            </button>
+            {videoError && <div style={{ color: "#ef4444", marginTop: 12, fontSize: 13 }}>{videoError}</div>}
+          </div>
+
+          {videoResult?.error && (
+            <div style={{ color: "#ef4444", textAlign: "center" }}>{videoResult.error}</div>
+          )}
+
+          {videoResult?.video_summary && (
+            <div style={{
+              background: "#1a1a1a", border: "1px solid #333", borderRadius: 12,
+              padding: 16, marginBottom: 16
+            }}>
+              <div style={{ color: "#888", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>👁️ WHAT THE AI SAW</div>
+              <div style={{ color: "#ccc", fontSize: 14, lineHeight: 1.6 }}>{videoResult.video_summary}</div>
+            </div>
+          )}
+
+          {videoResult?.overall_verdict && (
+            <div style={{
+              background: "#1e3a5f", border: "1px solid #3b82f644", borderRadius: 12,
+              padding: 18, marginBottom: 20
+            }}>
+              <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>🎬 OVERALL VERDICT</div>
+              <div style={{ color: "#dbeafe", fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>{videoResult.overall_verdict}</div>
+              {videoResult.key_improvements?.length > 0 && (
+                <div>
+                  <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 12, marginBottom: 4 }}>🔑 KEY IMPROVEMENTS</div>
+                  {videoResult.key_improvements.map((k, i) => <div key={i} style={{ color: "#dbeafe", fontSize: 13 }}>• {k}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {videoResult?.frames?.length > 0 && (
+            <div style={{ display: "grid", gap: 12, marginBottom: 24 }}>
+              {videoResult.frames.map((frame, i) => (
+                <VideoFrameCard key={i} frame={frame} isBest={i === videoResult.best_thumbnail_index} />
+              ))}
+            </div>
+          )}
+
+          {videoResult?.platforms && (
+            <>
+              <div style={{ color: "#888", fontSize: 13, marginBottom: 16, textAlign: "center" }}>
+                How this same video fits each platform
+              </div>
+              <div style={{ display: "grid", gap: 16 }}>
+                {Object.entries(videoResult.platforms).map(([plat, data]) => (
+                  <InsightCard key={plat} platform={plat} data={data} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
