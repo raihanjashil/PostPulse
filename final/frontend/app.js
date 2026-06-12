@@ -136,6 +136,10 @@ function init() {
 
   renderAccountsBanner();
   checkBackendHealth();
+  initTabs();
+  initVideoUpload();
+
+  $('btn-load-insights')?.addEventListener('click', onLoadInsights);
 
   // Gear button toggles settings panel
   const btnSettings = $('btn-settings');
@@ -984,6 +988,383 @@ function generateMockData(draft, platforms) {
   };
 
   return { results, benchmarks, recommendation };
+}
+
+// =============================
+// TAB SWITCHING
+// =============================
+
+function initTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+      btn.classList.add('active');
+      $(`tab-${btn.dataset.tab}`)?.classList.remove('hidden');
+    });
+  });
+}
+
+// =============================
+// ACCOUNT INTELLIGENCE
+// =============================
+
+async function onLoadInsights() {
+  const btn        = $('btn-load-insights');
+  const loadingEl  = $('insights-loading');
+  const gridEl     = $('insights-grid');
+  const overallEl  = $('insights-overall');
+  const stepFetch  = $('step-insights-fetch');
+  const stepAI     = $('step-insights-ai');
+
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  loadingEl.classList.remove('hidden');
+  gridEl.innerHTML = '';
+  overallEl.classList.add('hidden');
+
+  // reset loading steps
+  [stepFetch, stepAI].forEach(el => {
+    if (!el) return;
+    el.classList.remove('active', 'done');
+    el.classList.add('waiting');
+    el.querySelector('.step-check')?.classList.add('hidden');
+    const s = el.querySelector('.step-spinner');
+    if (s) s.style.display = '';
+  });
+
+  try {
+    let data;
+    if (state.backendLive) {
+      activateStep(stepFetch);
+      const res = await apiFetch('/insights');
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      completeStep(stepFetch);
+      activateStep(stepAI);
+      data = await res.json();
+      completeStep(stepAI);
+    } else {
+      await delay(800);
+      activateStep(stepFetch);
+      await delay(600);
+      completeStep(stepFetch);
+      activateStep(stepAI);
+      await delay(800);
+      completeStep(stepAI);
+      data = generateMockInsights();
+    }
+
+    loadingEl.classList.add('hidden');
+    renderInsights(data);
+    showToast('Account Intelligence loaded');
+  } catch {
+    loadingEl.classList.add('hidden');
+    renderInsights(generateMockInsights());
+    showToast('Using mock insights data', 'warn');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<span class="btn-icon">🔄</span> Refresh Intelligence';
+}
+
+function renderInsights(data) {
+  const gridEl    = $('insights-grid');
+  const overallEl = $('insights-overall');
+  gridEl.innerHTML = '';
+
+  if (data.overall_strategy) {
+    overallEl.innerHTML = `
+      <div class="overall-strategy-card">
+        <div class="overall-strategy-label">🎯 Cross-Platform Strategy</div>
+        <div class="overall-strategy-text">${data.overall_strategy}</div>
+      </div>
+    `;
+    overallEl.classList.remove('hidden');
+  }
+
+  const platformsData = data.platforms || {};
+  Object.entries(PLATFORMS).forEach(([pid, p]) => {
+    const insight = platformsData[pid];
+    if (!insight) return;
+
+    const card = document.createElement('div');
+    card.className = 'insight-card';
+    card.innerHTML = `
+      <div class="insight-platform-header">
+        <span class="insight-platform-icon">${p.icon}</span>
+        <span class="insight-platform-name">${p.name}</span>
+      </div>
+      <div class="insight-headline">${insight.headline || '—'}</div>
+      <div class="insight-patterns-label">Key Patterns</div>
+      <ul class="insight-patterns">
+        ${(insight.patterns || []).map(pat => `<li>${pat}</li>`).join('')}
+      </ul>
+      <div class="insight-recommendation">
+        <span class="insight-rec-label">Recommendation</span>
+        <div class="insight-rec-text">${insight.recommendation || '—'}</div>
+      </div>
+    `;
+    gridEl.appendChild(card);
+  });
+}
+
+function generateMockInsights() {
+  const platforms = {};
+  Object.entries(PLATFORMS).forEach(([pid, p]) => {
+    platforms[pid] = {
+      headline: `[Mock] ${p.name} rewards posts with strong visual hooks and consistent posting cadence`,
+      patterns: [
+        '[Mock] Posts with questions get 2-3x more comments',
+        '[Mock] First line decides reach — emoji-led performs better',
+        '[Mock] Science curiosity hooks outperform announcement posts',
+      ],
+      recommendation: `[Mock] Open every ${p.name} post with a surprising stat or question.`,
+    };
+  });
+  return {
+    platforms,
+    overall_strategy: '[Mock] Across all platforms, curiosity-driven hooks and clear CTAs drive the most consistent engagement. Post consistently on Tue/Wed in the Gulf evening window (6–9pm GST).',
+  };
+}
+
+// =============================
+// VIDEO ANALYZER
+// =============================
+
+let selectedVideoFile = null;
+
+function initVideoUpload() {
+  const area       = $('video-upload-area');
+  const fileInput  = $('video-file-input');
+  const prompt     = $('upload-prompt');
+  const selected   = $('upload-selected');
+  const fileLabel  = $('upload-filename');
+  const analyzeBtn = $('btn-analyze-video');
+  const clearBtn   = $('btn-clear-video');
+  if (!area) return;
+
+  area.addEventListener('click', e => {
+    if (clearBtn && (e.target === clearBtn || clearBtn.contains(e.target))) return;
+    fileInput.click();
+  });
+
+  area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('drag-over'); });
+  area.addEventListener('dragleave', () => area.classList.remove('drag-over'));
+  area.addEventListener('drop', e => {
+    e.preventDefault();
+    area.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file) setVideoFile(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files?.[0]) setVideoFile(fileInput.files[0]);
+  });
+
+  clearBtn?.addEventListener('click', e => {
+    e.stopPropagation();
+    selectedVideoFile = null;
+    fileInput.value   = '';
+    prompt.classList.remove('hidden');
+    selected.classList.add('hidden');
+    analyzeBtn.disabled = true;
+    $('video-results')?.classList.add('hidden');
+  });
+
+  function setVideoFile(file) {
+    selectedVideoFile = file;
+    if (fileLabel) fileLabel.textContent = file.name;
+    prompt.classList.add('hidden');
+    selected.classList.remove('hidden');
+    analyzeBtn.disabled = false;
+  }
+
+  analyzeBtn?.addEventListener('click', onAnalyzeVideo);
+}
+
+async function onAnalyzeVideo() {
+  if (!selectedVideoFile) return;
+
+  const analyzeBtn = $('btn-analyze-video');
+  const loadingEl  = $('video-loading');
+  const resultsEl  = $('video-results');
+  const stepFrames = $('step-video-frames');
+  const stepAI     = $('step-video-ai');
+
+  analyzeBtn.disabled = true;
+  analyzeBtn.innerHTML = '<span class="btn-icon">⏳</span> Analyzing…';
+  loadingEl.classList.remove('hidden');
+  resultsEl.classList.add('hidden');
+
+  [stepFrames, stepAI].forEach(el => {
+    if (!el) return;
+    el.classList.remove('active', 'done');
+    el.classList.add('waiting');
+    el.querySelector('.step-check')?.classList.add('hidden');
+    const s = el.querySelector('.step-spinner');
+    if (s) s.style.display = '';
+  });
+
+  try {
+    let data;
+
+    if (state.backendLive) {
+      activateStep(stepFrames);
+      const formData = new FormData();
+      formData.append('file', selectedVideoFile);
+      formData.append('topic', $('video-topic-input')?.value || 'science innovation');
+      const res = await apiFetch('/analyze-video', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      completeStep(stepFrames);
+      activateStep(stepAI);
+      data = await res.json();
+      completeStep(stepAI);
+    } else {
+      await delay(600); activateStep(stepFrames);
+      await delay(800); completeStep(stepFrames); activateStep(stepAI);
+      await delay(800); completeStep(stepAI);
+      data = generateMockVideoResults();
+    }
+
+    loadingEl.classList.add('hidden');
+    renderVideoResults(data);
+    resultsEl.classList.remove('hidden');
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  } catch {
+    loadingEl.classList.add('hidden');
+    renderVideoResults(generateMockVideoResults());
+    resultsEl.classList.remove('hidden');
+    showToast('Using mock video analysis (backend error)', 'warn');
+  }
+
+  analyzeBtn.disabled = false;
+  analyzeBtn.innerHTML = '<span class="btn-icon">🔍</span> Analyze Video';
+}
+
+function renderVideoResults(data) {
+  const summaryEl  = $('video-summary-card');
+  const framesEl   = $('video-frames-grid');
+  const platformEl = $('video-platform-fit');
+  const bestIdx    = data.best_thumbnail_index ?? 0;
+
+  // ---- Summary card ----
+  summaryEl.innerHTML = `
+    <div class="video-summary-card">
+      <div class="vsummary-header"><span class="vsummary-title">📹 Video Summary</span></div>
+      <div class="vsummary-description">${data.video_summary || '—'}</div>
+      <div class="vsummary-verdict">
+        <div class="vsummary-verdict-label">Overall Verdict</div>
+        <div class="vsummary-verdict-text">${data.overall_verdict || '—'}</div>
+      </div>
+      ${(data.key_improvements?.length) ? `
+        <div class="vsummary-improvements">
+          <div class="vsummary-improvements-label">Key Improvements</div>
+          <ul class="vsummary-improvements-list">
+            ${data.key_improvements.map(imp => `<li>${imp}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  // ---- Frames grid ----
+  framesEl.innerHTML = '';
+  (data.frames || []).forEach(frame => {
+    const isBest = frame.index === bestIdx;
+    const score  = frame.score ?? 0;
+    const color  = score >= 7 ? 'var(--green)' : score >= 4 ? 'var(--orange)' : 'var(--red)';
+    const card   = document.createElement('div');
+    card.className = `video-frame-card${isBest ? ' best-thumbnail' : ''}`;
+    card.innerHTML = `
+      ${isBest ? '<div class="thumbnail-badge">★ Best Thumbnail</div>' : ''}
+      ${frame.thumbnail
+        ? `<img class="frame-thumb" src="${frame.thumbnail}" alt="Frame ${frame.index}">`
+        : `<div class="frame-thumb-placeholder">Frame ${frame.index + 1}</div>`}
+      <div class="frame-meta">
+        <div class="frame-top">
+          <span class="frame-number">Frame ${frame.index + 1}</span>
+          ${frame.timestamp != null ? `<span class="frame-ts">${frame.timestamp}s</span>` : ''}
+          <span class="frame-score" style="color:${color}">${score}/10</span>
+        </div>
+        <div class="frame-feedback">${frame.feedback || ''}</div>
+        <div class="frame-suggestion">💡 ${frame.suggestion || ''}</div>
+      </div>
+    `;
+    framesEl.appendChild(card);
+  });
+
+  // ---- Platform fit ----
+  platformEl.innerHTML = '';
+  if (data.platforms) {
+    const headerEl = document.createElement('div');
+    headerEl.className = 'results-header';
+    headerEl.style.marginTop = '32px';
+    headerEl.innerHTML = '<h2>Platform Fit</h2><p class="results-sub">How this video lands on each platform</p>';
+    platformEl.appendChild(headerEl);
+
+    const gridEl = document.createElement('div');
+    gridEl.className = 'video-platform-grid';
+    platformEl.appendChild(gridEl);
+
+    Object.entries(PLATFORMS).forEach(([pid, p]) => {
+      const fit = data.platforms[pid];
+      if (!fit) return;
+      const card = document.createElement('div');
+      card.className = 'platform-fit-card';
+      card.innerHTML = `
+        <div class="pfit-header">
+          <span class="pfit-icon">${p.icon}</span>
+          <span class="pfit-name">${p.name}</span>
+        </div>
+        <div class="pfit-headline">${fit.headline || '—'}</div>
+        <ul class="pfit-patterns">
+          ${(fit.patterns || []).map(pat => `<li>${pat}</li>`).join('')}
+        </ul>
+        <div class="pfit-recommendation">💡 ${fit.recommendation || '—'}</div>
+      `;
+      gridEl.appendChild(card);
+    });
+  }
+}
+
+function generateMockVideoResults() {
+  const frames = Array.from({ length: 5 }, (_, i) => ({
+    index: i,
+    score: 5 + Math.floor(Math.random() * 5),
+    feedback: `[Mock] Frame ${i + 1}: moderate visual quality, decent composition.`,
+    suggestion: i === 0
+      ? 'Overlay a bold opening question to create a hook.'
+      : 'Brighten the shot and add a text annotation.',
+    timestamp: i * 2.5,
+    thumbnail: null,
+  }));
+
+  const platforms = {};
+  Object.entries(PLATFORMS).forEach(([pid, p]) => {
+    platforms[pid] = {
+      headline: `[Mock] This footage suits ${p.name} with the right aspect ratio adjustment.`,
+      patterns: [
+        '[Mock] Good subject visibility — works as a short clip',
+        '[Mock] Hook could be stronger in the opening second',
+        '[Mock] Audio quality not assessable from frames alone',
+      ],
+      recommendation: `[Mock] Crop to ${p.name}'s optimal aspect ratio and add a text overlay on frame 1.`,
+    };
+  });
+
+  return {
+    video_summary: '[Mock mode] A short video clip with a subject in focus. Lighting is acceptable.',
+    frames,
+    best_thumbnail_index: 2,
+    overall_verdict: '[Mock mode] Pacing is steady. Add a strong hook in the first second and a CTA in the last 3 seconds.',
+    key_improvements: [
+      'Open with a bold question or surprising stat overlay',
+      'Add subtitles for silent viewing',
+      'End with an explicit CTA screen',
+    ],
+    platforms,
+  };
 }
 
 // ---- BOOT ----

@@ -117,6 +117,9 @@ IMPORTANT: "frames" must contain exactly {len(frames)} entries, with "index" val
     best_idx = result.get("best_thumbnail_index")
     if not isinstance(best_idx, int) or not (0 <= best_idx < len(result_frames)):
         if result_frames:
-            result["best_thumbnail_index"] = max(range(len(result_frames)), key=lambda i: result_frames[i].get("score", 0))
+            result["best_thumbnail_index"] = max(
+                range(len(result_frames)),
+                key=lambda i: result_frames[i].get("score", 0)
+            )
 
     return result

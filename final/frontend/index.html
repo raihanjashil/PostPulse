@@ -25,197 +25,298 @@
 
   <main>
 
-    <!-- SETTINGS PANEL (OAuth credentials for the app operator) -->
-    <section class="settings-panel hidden" id="settings-panel">
-      <div class="settings-header">
-        <span class="settings-title">⚙ Platform Credentials</span>
-        <button class="btn-settings-close" id="btn-settings-close">✕</button>
-      </div>
-      <p class="settings-desc">
-        Paste in your OAuth app credentials for each platform. These are saved server-side in
-        <code>platform_config.json</code> and are never sent to the browser.
-        End users connecting their accounts never need to touch this — it's a one-time setup for whoever runs this server.
-      </p>
-      <div class="settings-form-grid" id="settings-form-grid">
-        <!-- Rendered by app.js -->
-      </div>
-    </section>
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="scorer">⚡ Post Scorer</button>
+      <button class="tab-btn" data-tab="insights">📊 Account Intelligence</button>
+      <button class="tab-btn" data-tab="video">🎬 Video Analyzer</button>
+    </div>
 
-    <!-- CONNECTED ACCOUNTS -->
-    <section class="accounts-section" id="accounts-section">
-      <div class="accounts-header">
-        <span class="accounts-title">Connected Accounts</span>
-        <span class="accounts-sub">Connect your own accounts for personalized benchmarks &amp; one-click publishing</span>
-      </div>
-      <div class="accounts-grid" id="accounts-grid">
-        <!-- Rendered by app.js on load -->
-      </div>
-    </section>
+    <!-- ======== TAB: POST SCORER ======== -->
+    <div id="tab-scorer" class="tab-pane active">
 
-    <section class="input-section">
-      <div class="input-header">
-        <h1>Drop your draft.<br><span class="accent">We'll make it hit.</span></h1>
-        <p class="subtitle">Paste a post. Get scored against real Stars of Science performance data across every platform.</p>
-      </div>
+      <!-- SETTINGS PANEL (OAuth credentials for the app operator) -->
+      <section class="settings-panel hidden" id="settings-panel">
+        <div class="settings-header">
+          <span class="settings-title">⚙ Platform Credentials</span>
+          <button class="btn-settings-close" id="btn-settings-close">✕</button>
+        </div>
+        <p class="settings-desc">
+          Paste in your OAuth app credentials for each platform. These are saved server-side in
+          <code>platform_config.json</code> and are never sent to the browser.
+          End users connecting their accounts never need to touch this — it's a one-time setup for whoever runs this server.
+        </p>
+        <div class="settings-form-grid" id="settings-form-grid">
+          <!-- Rendered by app.js -->
+        </div>
+      </section>
 
-      <div class="input-area">
-        <div class="input-box">
-          <textarea id="draft-input" placeholder="Paste your draft post here...&#10;&#10;e.g. &quot;Applications for Stars of Science Season 17 are now open! Young Arab innovators — this is your chance to turn your idea into reality. Apply now at starsofscience.com&quot;"></textarea>
-          <div class="input-meta">
-            <span class="char-count"><span id="char-count">0</span> chars</span>
-            <div class="input-actions">
-              <button class="btn-secondary" id="btn-clear">Clear</button>
-              <button class="btn-primary" id="btn-analyze">
-                <span class="btn-icon">⚡</span> Score My Post
-              </button>
+      <!-- CONNECTED ACCOUNTS -->
+      <section class="accounts-section" id="accounts-section">
+        <div class="accounts-header">
+          <span class="accounts-title">Connected Accounts</span>
+          <span class="accounts-sub">Connect your own accounts for personalized benchmarks &amp; one-click publishing</span>
+        </div>
+        <div class="accounts-grid" id="accounts-grid">
+          <!-- Rendered by app.js on load -->
+        </div>
+      </section>
+
+      <section class="input-section">
+        <div class="input-header">
+          <h1>Drop your draft.<br><span class="accent">We'll make it hit.</span></h1>
+          <p class="subtitle">Paste a post. Get scored against real Stars of Science performance data across every platform.</p>
+        </div>
+
+        <div class="input-area">
+          <div class="input-box">
+            <textarea id="draft-input" placeholder="Paste your draft post here...&#10;&#10;e.g. &quot;Applications for Stars of Science Season 17 are now open! Young Arab innovators — this is your chance to turn your idea into reality. Apply now at starsofscience.com&quot;"></textarea>
+            <div class="input-meta">
+              <span class="char-count"><span id="char-count">0</span> chars</span>
+              <div class="input-actions">
+                <button class="btn-secondary" id="btn-clear">Clear</button>
+                <button class="btn-primary" id="btn-analyze">
+                  <span class="btn-icon">⚡</span> Score My Post
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="extra-inputs">
+            <div class="extra-input-group">
+              <label class="extra-label" for="topic-input">Topic</label>
+              <input type="text" id="topic-input" value="science innovation" placeholder="e.g. science innovation">
+            </div>
+            <div class="extra-input-group">
+              <label class="extra-label" for="media-select">Media type</label>
+              <select id="media-select">
+                <option value="text">📝 Text only</option>
+                <option value="image">🖼️ Image</option>
+                <option value="video">🎬 Video</option>
+                <option value="carousel">🎠 Carousel / Reel</option>
+              </select>
+            </div>
+            <div class="extra-input-group">
+              <label class="extra-label" for="goal-select">Goal</label>
+              <select id="goal-select">
+                <option value="reach">📈 Maximize Reach</option>
+                <option value="engagement">💬 Maximize Engagement</option>
+                <option value="conversions">🎯 Maximize Conversions</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="platform-select">
+            <span class="platform-select-label">Target platforms</span>
+            <div class="platform-chips">
+              <button class="chip active" data-platform="instagram">📸 Instagram</button>
+              <button class="chip active" data-platform="tiktok">🎵 TikTok</button>
+              <button class="chip active" data-platform="twitter">🐦 X / Twitter</button>
+              <button class="chip active" data-platform="youtube">▶️ YouTube</button>
+              <button class="chip active" data-platform="linkedin">💼 LinkedIn</button>
+              <button class="chip active" data-platform="facebook">📘 Facebook</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PIPELINE LOADING -->
+      <section class="loading-section hidden" id="loading-section">
+        <div class="pipeline-steps">
+          <div class="pipeline-step" id="step-benchmark">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Fetching SoS benchmarks</span>
+              <span class="step-detail">Pulling real post performance via RapidAPI</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-rules">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Running rule checks</span>
+              <span class="step-detail">Character limits, hashtag counts, format validation</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-ai">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">AI scoring & rewriting</span>
+              <span class="step-detail">GPT-4o-mini analyzes against benchmarks + rules</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RESULTS -->
+      <section class="results-section hidden" id="results-section">
+
+        <div class="recommendation-section hidden" id="recommendation-section">
+          <div class="recommendation-card" id="recommendation-card"></div>
+        </div>
+
+        <div class="benchmark-section hidden" id="benchmark-section">
+          <div class="results-header">
+            <h2>SoS Benchmark</h2>
+            <p class="results-sub">Real Stars of Science performance — your draft is scored against this</p>
+          </div>
+          <div class="benchmark-grid" id="benchmark-grid"></div>
+        </div>
+
+        <div class="rules-section" id="rules-section">
+          <div class="results-header">
+            <h2>Pre-Flight Check</h2>
+            <p class="results-sub">Hard rules caught before AI even looks at it</p>
+          </div>
+          <div class="rules-list" id="rules-list"></div>
+        </div>
+
+        <div class="results-header">
+          <h2>Score Breakdown</h2>
+          <p class="results-sub">Click any card for the full breakdown, rewrite, and hashtags</p>
+        </div>
+        <div class="score-grid" id="score-grid"></div>
+
+        <div class="detail-panel hidden" id="detail-panel">
+          <div class="detail-header">
+            <h3 id="detail-platform-name">Instagram</h3>
+            <div class="detail-score-big" id="detail-score-big">82</div>
+          </div>
+          <div class="detail-body">
+            <div class="detail-left">
+              <div id="detail-breakdown"></div>
+              <div id="detail-hashtags"></div>
+            </div>
+            <div class="detail-right">
+              <div id="detail-suggestions"></div>
+            </div>
+          </div>
+          <div id="detail-publish-row"></div>
+          <div class="detail-rewrite hidden" id="detail-rewrite">
+            <div class="rewrite-header">
+              <span class="rewrite-title">✍️ AI-Rewritten Version</span>
+              <button class="copy-btn" id="copy-rewrite-btn">Copy</button>
+            </div>
+            <div class="rewrite-text" id="rewrite-text"></div>
+          </div>
+
+          <div class="detail-algorithm hidden" id="detail-algorithm">
+            <div class="algo-header"><span class="algo-title">🧠 Algorithm Decoder</span></div>
+            <div class="algo-verdict" id="algo-verdict"></div>
+            <div class="algo-signals" id="algo-signals"></div>
+          </div>
+
+          <div class="detail-audience hidden" id="detail-audience">
+            <div class="audience-header"><span class="audience-title">🌍 Audience &amp; Geo Targeting</span></div>
+            <div class="audience-tabs" id="audience-tabs"></div>
+            <div class="audience-body" id="audience-body"></div>
+          </div>
+        </div>
+
+        <div class="schedule-section">
+          <div class="results-header">
+            <h2>Optimal Posting Times</h2>
+            <p class="results-sub">AI-recommended for MENA audiences</p>
+          </div>
+          <div class="schedule-grid" id="schedule-grid"></div>
+        </div>
+
+      </section>
+    </div><!-- /tab-scorer -->
+
+    <!-- ======== TAB: ACCOUNT INTELLIGENCE ======== -->
+    <div id="tab-insights" class="tab-pane hidden">
+      <section class="insights-section">
+        <div class="results-header">
+          <h2>Account Intelligence</h2>
+          <p class="results-sub">Real engagement patterns decoded from Stars of Science accounts</p>
+        </div>
+        <button class="btn-primary" id="btn-load-insights">
+          <span class="btn-icon">📊</span> Load Account Intelligence
+        </button>
+        <div class="pipeline-steps hidden" id="insights-loading">
+          <div class="pipeline-step" id="step-insights-fetch">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Fetching account data</span>
+              <span class="step-detail">Pulling real post data via RapidAPI for all platforms</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-insights-ai">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">AI pattern analysis</span>
+              <span class="step-detail">GPT-4o-mini decoding engagement signals</span>
+            </div>
+          </div>
+        </div>
+        <div id="insights-overall" class="insights-overall hidden"></div>
+        <div id="insights-grid" class="insights-grid"></div>
+      </section>
+    </div><!-- /tab-insights -->
+
+    <!-- ======== TAB: VIDEO ANALYZER ======== -->
+    <div id="tab-video" class="tab-pane hidden">
+      <section class="video-section">
+        <div class="results-header">
+          <h2>Video Analyzer</h2>
+          <p class="results-sub">Upload a video draft — AI scores every frame and picks the best thumbnail</p>
+        </div>
+        <div class="video-upload-area" id="video-upload-area">
+          <input type="file" id="video-file-input" accept="video/*" class="hidden">
+          <div class="upload-prompt" id="upload-prompt">
+            <span class="upload-icon">🎬</span>
+            <span>Click to upload or drag &amp; drop</span>
+            <span class="upload-sub">MP4, MOV, AVI — max 100MB</span>
+          </div>
+          <div class="upload-selected hidden" id="upload-selected">
+            <span class="upload-icon">✅</span>
+            <span id="upload-filename"></span>
+            <button class="btn-secondary" id="btn-clear-video">Change</button>
+          </div>
+        </div>
+        <div class="extra-inputs" style="margin-top:14px;">
+          <div class="extra-input-group">
+            <label class="extra-label" for="video-topic-input">Topic</label>
+            <input type="text" id="video-topic-input" value="science innovation" placeholder="e.g. science innovation">
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-analyze-video" style="margin-top:16px;" disabled>
+          <span class="btn-icon">🔍</span> Analyze Video
+        </button>
+
+        <div class="pipeline-steps hidden" id="video-loading">
+          <div class="pipeline-step" id="step-video-frames">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Extracting frames</span>
+              <span class="step-detail">Sampling key moments from the video with OpenCV</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-video-ai">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">AI vision analysis</span>
+              <span class="step-detail">GPT-4o-mini scoring each frame and platform fit</span>
             </div>
           </div>
         </div>
 
-        <div class="extra-inputs">
-          <div class="extra-input-group">
-            <label class="extra-label" for="topic-input">Topic</label>
-            <input type="text" id="topic-input" value="science innovation" placeholder="e.g. science innovation">
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="media-select">Media type</label>
-            <select id="media-select">
-              <option value="text">📝 Text only</option>
-              <option value="image">🖼️ Image</option>
-              <option value="video">🎬 Video</option>
-              <option value="carousel">🎠 Carousel / Reel</option>
-            </select>
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="goal-select">Goal</label>
-            <select id="goal-select">
-              <option value="reach">📈 Maximize Reach</option>
-              <option value="engagement">💬 Maximize Engagement</option>
-              <option value="conversions">🎯 Maximize Conversions</option>
-            </select>
-          </div>
+        <div id="video-results" class="hidden">
+          <div id="video-summary-card"></div>
+          <div class="results-header" style="margin-top:32px;"><h2>Frame Analysis</h2></div>
+          <div id="video-frames-grid" class="video-frames-grid"></div>
+          <div id="video-platform-fit"></div>
         </div>
+      </section>
+    </div><!-- /tab-video -->
 
-        <div class="platform-select">
-          <span class="platform-select-label">Target platforms</span>
-          <div class="platform-chips">
-            <button class="chip active" data-platform="instagram">📸 Instagram</button>
-            <button class="chip active" data-platform="tiktok">🎵 TikTok</button>
-            <button class="chip active" data-platform="twitter">🐦 X / Twitter</button>
-            <button class="chip active" data-platform="youtube">▶️ YouTube</button>
-            <button class="chip active" data-platform="linkedin">💼 LinkedIn</button>
-            <button class="chip active" data-platform="facebook">📘 Facebook</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- PIPELINE LOADING -->
-    <section class="loading-section hidden" id="loading-section">
-      <div class="pipeline-steps">
-        <div class="pipeline-step" id="step-benchmark">
-          <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-          <div class="step-info">
-            <span class="step-label">Fetching SoS benchmarks</span>
-            <span class="step-detail">Pulling real post performance via RapidAPI</span>
-          </div>
-        </div>
-        <div class="pipeline-step waiting" id="step-rules">
-          <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-          <div class="step-info">
-            <span class="step-label">Running rule checks</span>
-            <span class="step-detail">Character limits, hashtag counts, format validation</span>
-          </div>
-        </div>
-        <div class="pipeline-step waiting" id="step-ai">
-          <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-          <div class="step-info">
-            <span class="step-label">AI scoring & rewriting</span>
-            <span class="step-detail">GPT-4o-mini analyzes against benchmarks + rules</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- RESULTS -->
-    <section class="results-section hidden" id="results-section">
-
-      <div class="recommendation-section hidden" id="recommendation-section">
-        <div class="recommendation-card" id="recommendation-card"></div>
-      </div>
-
-      <div class="benchmark-section hidden" id="benchmark-section">
-        <div class="results-header">
-          <h2>SoS Benchmark</h2>
-          <p class="results-sub">Real Stars of Science performance — your draft is scored against this</p>
-        </div>
-        <div class="benchmark-grid" id="benchmark-grid"></div>
-      </div>
-
-      <div class="rules-section" id="rules-section">
-        <div class="results-header">
-          <h2>Pre-Flight Check</h2>
-          <p class="results-sub">Hard rules caught before AI even looks at it</p>
-        </div>
-        <div class="rules-list" id="rules-list"></div>
-      </div>
-
-      <div class="results-header">
-        <h2>Score Breakdown</h2>
-        <p class="results-sub">Click any card for the full breakdown, rewrite, and hashtags</p>
-      </div>
-      <div class="score-grid" id="score-grid"></div>
-
-      <div class="detail-panel hidden" id="detail-panel">
-        <div class="detail-header">
-          <h3 id="detail-platform-name">Instagram</h3>
-          <div class="detail-score-big" id="detail-score-big">82</div>
-        </div>
-        <div class="detail-body">
-          <div class="detail-left">
-            <div id="detail-breakdown"></div>
-            <div id="detail-hashtags"></div>
-          </div>
-          <div class="detail-right">
-            <div id="detail-suggestions"></div>
-          </div>
-        </div>
-        <div id="detail-publish-row"></div>
-        <div class="detail-rewrite hidden" id="detail-rewrite">
-          <div class="rewrite-header">
-            <span class="rewrite-title">✍️ AI-Rewritten Version</span>
-            <button class="copy-btn" id="copy-rewrite-btn">Copy</button>
-          </div>
-          <div class="rewrite-text" id="rewrite-text"></div>
-        </div>
-
-        <div class="detail-algorithm hidden" id="detail-algorithm">
-          <div class="algo-header"><span class="algo-title">🧠 Algorithm Decoder</span></div>
-          <div class="algo-verdict" id="algo-verdict"></div>
-          <div class="algo-signals" id="algo-signals"></div>
-        </div>
-
-        <div class="detail-audience hidden" id="detail-audience">
-          <div class="audience-header"><span class="audience-title">🌍 Audience &amp; Geo Targeting</span></div>
-          <div class="audience-tabs" id="audience-tabs"></div>
-          <div class="audience-body" id="audience-body"></div>
-        </div>
-      </div>
-
-      <div class="schedule-section">
-        <div class="results-header">
-          <h2>Optimal Posting Times</h2>
-          <p class="results-sub">AI-recommended for MENA audiences</p>
-        </div>
-        <div class="schedule-grid" id="schedule-grid"></div>
-      </div>
-
-    </section>
   </main>
 
   <footer class="site-footer">
     <p>Built at Build For QSTP Hackathon #3 — Stars of Science</p>
   </footer>
+
+  <div id="toast" class="toast hidden"></div>
 
   <script src="app.js"></script>
 </body>

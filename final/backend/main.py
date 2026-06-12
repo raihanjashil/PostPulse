@@ -1,13 +1,17 @@
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, HTMLResponse
 from pydantic import BaseModel
 from typing import Optional
+import shutil
+import tempfile
+import os
 import auth
 import publish
 import sessions as sessions_module
 import platform_config as cfg_module
-from scorer import score_post, score_all_platforms, recommend_publishing
+import video_analyzer
+from scorer import score_post, score_all_platforms, recommend_publishing, generate_account_insights
 
 app = FastAPI(title="SoS Content Scorer API")
 
@@ -142,6 +146,30 @@ def save_config(req: ConfigRequest):
 def clear_config(platform: str):
     cfg_module.clear_config(platform)
     return {"ok": True, "platform": platform}
+
+# ---- Publish ----
+
+# ---- Insights ----
+
+@app.get("/insights")
+def insights():
+    return generate_account_insights()
+
+# ---- Video Analyzer ----
+
+@app.post("/analyze-video")
+async def analyze_video_endpoint(
+    file: UploadFile = File(...),
+    topic: str = Form(default="science innovation"),
+):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+    try:
+        result = video_analyzer.analyze_video(tmp_path, topic)
+    finally:
+        os.unlink(tmp_path)
+    return result
 
 # ---- Publish ----
 
