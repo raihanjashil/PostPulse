@@ -19,10 +19,27 @@
     <div class="topbar-right">
       <span class="status-dot" id="api-dot"></span>
       <span class="status-text" id="api-status">Connecting...</span>
+      <button id="btn-settings" title="Platform credentials settings">⚙</button>
     </div>
   </nav>
 
   <main>
+
+    <!-- SETTINGS PANEL (OAuth credentials for the app operator) -->
+    <section class="settings-panel hidden" id="settings-panel">
+      <div class="settings-header">
+        <span class="settings-title">⚙ Platform Credentials</span>
+        <button class="btn-settings-close" id="btn-settings-close">✕</button>
+      </div>
+      <p class="settings-desc">
+        Paste in your OAuth app credentials for each platform. These are saved server-side in
+        <code>platform_config.json</code> and are never sent to the browser.
+        End users connecting their accounts never need to touch this — it's a one-time setup for whoever runs this server.
+      </p>
+      <div class="settings-form-grid" id="settings-form-grid">
+        <!-- Rendered by app.js -->
+      </div>
+    </section>
 
     <!-- CONNECTED ACCOUNTS -->
     <section class="accounts-section" id="accounts-section">

@@ -42,7 +42,8 @@ const state = {
   mediaType: 'text',
   results: null,   // { results, benchmarks }
   backendLive: false,
-  connectedAccounts: {},  // { platform: { username, blocked } }
+  connectedAccounts: {},   // { platform: { username, blocked } }
+  platformConfig: {},      // { platform: { configured: bool } }
 };
 
 // ---- PLATFORM CONFIG ----
@@ -119,6 +120,20 @@ function init() {
 
   renderAccountsBanner();
   checkBackendHealth();
+
+  // Gear button toggles settings panel
+  const btnSettings = $('btn-settings');
+  const settingsPanel = $('settings-panel');
+  if (btnSettings && settingsPanel) {
+    btnSettings.addEventListener('click', () => {
+      settingsPanel.classList.toggle('hidden');
+      if (!settingsPanel.classList.contains('hidden')) renderSettings();
+    });
+  }
+  const btnSettingsClose = $('btn-settings-close');
+  if (btnSettingsClose && settingsPanel) {
+    btnSettingsClose.addEventListener('click', () => settingsPanel.classList.add('hidden'));
+  }
 }
 
 // ---- HEALTH CHECK ----
@@ -130,6 +145,7 @@ async function checkBackendHealth() {
       apiDot.className = 'status-dot live';
       apiStatusText.textContent = 'API Live';
       await loadAuthStatus();
+      await loadConfigStatus();
     } else { throw 0; }
   } catch {
     state.backendLive = false;
@@ -145,6 +161,16 @@ async function loadAuthStatus() {
       const data = await res.json();
       state.connectedAccounts = data.connected || {};
       renderAccountsBanner();
+    }
+  } catch { /* non-fatal */ }
+}
+
+async function loadConfigStatus() {
+  try {
+    const res = await apiFetch('/config');
+    if (res.ok) {
+      state.platformConfig = await res.json();
+      renderAccountsBanner();  // re-render to show "Setup required" badges
     }
   } catch { /* non-fatal */ }
 }
@@ -206,6 +232,9 @@ function renderAccountsBanner() {
     const isConnected = conn && !conn.blocked;
     const isBlocked   = conn && conn.blocked;
 
+    // Check if this platform has credentials configured (for non-blocked platforms)
+    const needsSetup = !isBlocked && !conn && state.platformConfig[pid]?.configured === false;
+
     const card = document.createElement('div');
     card.className = `account-card${isConnected ? ' connected' : ''}${isBlocked ? ' blocked' : ''}`;
     card.innerHTML = `
@@ -217,7 +246,10 @@ function renderAccountsBanner() {
         : isBlocked
           ? `<div class="account-blocked-msg">Requires app approval</div>
              <button class="btn-connect-blocked" disabled>Coming soon</button>`
-          : `<button class="btn-connect" data-platform="${pid}">Connect</button>`
+          : needsSetup
+            ? `<button class="btn-connect" data-platform="${pid}">Connect</button>
+               <div class="setup-required-note">⚙ Add credentials in Settings</div>`
+            : `<button class="btn-connect" data-platform="${pid}">Connect</button>`
       }
     `;
     grid.appendChild(card);
@@ -228,6 +260,99 @@ function renderAccountsBanner() {
   });
   grid.querySelectorAll('.btn-disconnect').forEach(btn => {
     btn.addEventListener('click', () => disconnectPlatform(btn.dataset.platform));
+  });
+}
+
+// ---- SETTINGS PANEL ----
+// Only Twitter and LinkedIn are configurable (others are blocked by API review)
+const CONFIGURABLE_PLATFORMS = ['twitter', 'linkedin'];
+
+function renderSettings() {
+  const grid = $('settings-form-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  CONFIGURABLE_PLATFORMS.forEach(pid => {
+    const p    = PLATFORMS[pid];
+    const conf = state.platformConfig[pid];
+    const isConfigured = conf?.configured === true;
+
+    const row = document.createElement('div');
+    row.className = 'settings-row';
+    row.innerHTML = `
+      <div class="settings-platform-label">
+        ${p.icon} ${p.name}
+        <span class="settings-badge ${isConfigured ? 'configured' : 'not-set'}">
+          ${isConfigured ? '● Configured' : '● Not set'}
+        </span>
+      </div>
+      <input
+        class="settings-input"
+        type="text"
+        id="cfg-cid-${pid}"
+        placeholder="Client ID"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <input
+        class="settings-input"
+        type="password"
+        id="cfg-secret-${pid}"
+        placeholder="Client Secret"
+        autocomplete="off"
+      />
+      <button class="btn-settings-save" data-platform="${pid}">Save</button>
+      <button class="btn-settings-clear" data-platform="${pid}" ${isConfigured ? '' : 'disabled style="opacity:0.4;cursor:default"'}>Clear</button>
+    `;
+    grid.appendChild(row);
+  });
+
+  // Wire up Save buttons
+  grid.querySelectorAll('.btn-settings-save').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pid      = btn.dataset.platform;
+      const clientId = $(`cfg-cid-${pid}`)?.value.trim();
+      const secret   = $(`cfg-secret-${pid}`)?.value.trim();
+      if (!clientId || !secret) {
+        showToast('Both Client ID and Client Secret are required', 'warn');
+        return;
+      }
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const res = await apiFetch('/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platform: pid, client_id: clientId, client_secret: secret }),
+        });
+        if (res.ok) {
+          state.platformConfig[pid] = { configured: true };
+          showToast(`${PLATFORMS[pid].name} credentials saved`);
+          $(`cfg-cid-${pid}`).value    = '';
+          $(`cfg-secret-${pid}`).value = '';
+          renderSettings();
+          renderAccountsBanner();
+        } else {
+          showToast('Save failed', 'error');
+        }
+      } catch { showToast('Network error', 'error'); }
+      btn.disabled = false; btn.textContent = 'Save';
+    });
+  });
+
+  // Wire up Clear buttons
+  grid.querySelectorAll('.btn-settings-clear').forEach(btn => {
+    if (btn.disabled) return;
+    btn.addEventListener('click', async () => {
+      const pid = btn.dataset.platform;
+      btn.disabled = true; btn.textContent = 'Clearing…';
+      try {
+        await apiFetch(`/config/${pid}`, { method: 'DELETE' });
+        state.platformConfig[pid] = { configured: false };
+        showToast(`${PLATFORMS[pid].name} credentials cleared`);
+        renderSettings();
+        renderAccountsBanner();
+      } catch { showToast('Network error', 'error'); }
+    });
   });
 }
 

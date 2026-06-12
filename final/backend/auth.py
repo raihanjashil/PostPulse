@@ -1,4 +1,3 @@
-import os
 import secrets
 import hashlib
 import base64
@@ -6,6 +5,7 @@ import urllib.parse
 import requests
 from fastapi.responses import RedirectResponse, HTMLResponse
 import sessions as sessions_module
+import platform_config as cfg_module
 
 # ---- PKCE helpers ----
 
@@ -13,20 +13,18 @@ pkce_store: dict[str, str] = {}  # { state (== session_id): code_verifier }
 
 
 def generate_pkce_pair() -> tuple[str, str]:
-    verifier = secrets.token_urlsafe(64)
-    digest = hashlib.sha256(verifier.encode()).digest()
+    verifier  = secrets.token_urlsafe(64)
+    digest    = hashlib.sha256(verifier.encode()).digest()
     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
     return verifier, challenge
 
 
-# ---- Platform OAuth config ----
+# ---- Static platform metadata (no secrets stored here) ----
 
-OAUTH_CONFIG: dict[str, dict] = {
+OAUTH_META: dict[str, dict] = {
     "twitter": {
         "auth_url":     "https://twitter.com/i/oauth2/authorize",
         "token_url":    "https://api.twitter.com/2/oauth2/token",
-        "client_id":    os.getenv("TWITTER_CLIENT_ID"),
-        "client_secret": os.getenv("TWITTER_CLIENT_SECRET"),
         "scope":        "tweet.read tweet.write users.read offline.access",
         "redirect_uri": "http://localhost:8000/auth/twitter/callback",
         "pkce":         True,
@@ -35,8 +33,6 @@ OAUTH_CONFIG: dict[str, dict] = {
     "linkedin": {
         "auth_url":     "https://www.linkedin.com/oauth/v2/authorization",
         "token_url":    "https://www.linkedin.com/oauth/v2/accessToken",
-        "client_id":    os.getenv("LINKEDIN_CLIENT_ID"),
-        "client_secret": os.getenv("LINKEDIN_CLIENT_SECRET"),
         "scope":        "openid profile w_member_social",
         "redirect_uri": "http://localhost:8000/auth/linkedin/callback",
         "pkce":         False,
@@ -97,7 +93,7 @@ BLOCKED_POPUP_HTML = """<!DOCTYPE html>
 ERROR_POPUP_HTML = """<!DOCTYPE html>
 <html><head><title>Error</title></head><body>
 <p style="font-family:sans-serif;text-align:center;padding:40px;color:#ef4444;">
-  Connection failed. Please try again.
+  {message}
 </p>
 <script>
   try {{
@@ -114,63 +110,79 @@ ERROR_POPUP_HTML = """<!DOCTYPE html>
 # ---- Route handlers ----
 
 def auth_start(platform: str, session_id: str):
-    cfg = OAUTH_CONFIG.get(platform)
-    if not cfg:
-        return HTMLResponse(ERROR_POPUP_HTML.format(platform=platform), status_code=404)
+    meta = OAUTH_META.get(platform)
+    if not meta:
+        return HTMLResponse(ERROR_POPUP_HTML.format(platform=platform, message="Unknown platform"), status_code=404)
 
-    if cfg.get("blocked"):
+    if meta.get("blocked"):
         sessions_module.store_token(session_id, platform, None, None, blocked=True)
         return HTMLResponse(BLOCKED_POPUP_HTML.format(
             platform=platform,
-            reason=cfg["blocked_reason"],
+            reason=meta["blocked_reason"],
+        ))
+
+    # Fetch credentials dynamically — JSON config first, then .env
+    client_id, client_secret = cfg_module.get_credentials(platform)
+    if not client_id:
+        sessions_module.store_token(session_id, platform, None, None, blocked=True)
+        return HTMLResponse(BLOCKED_POPUP_HTML.format(
+            platform=platform,
+            reason=f"{platform.capitalize()} credentials not configured — open ⚙ Settings and add your OAuth app credentials.",
         ))
 
     params: dict[str, str] = {
-        "client_id":     cfg["client_id"],
-        "redirect_uri":  cfg["redirect_uri"],
+        "client_id":     client_id,
+        "redirect_uri":  meta["redirect_uri"],
         "response_type": "code",
-        "scope":         cfg["scope"],
+        "scope":         meta["scope"],
         "state":         session_id,
     }
 
-    if cfg.get("pkce"):
+    if meta.get("pkce"):
         verifier, challenge = generate_pkce_pair()
         pkce_store[session_id] = verifier
         params["code_challenge"] = challenge
         params["code_challenge_method"] = "S256"
 
-    url = cfg["auth_url"] + "?" + urllib.parse.urlencode(params)
+    url = meta["auth_url"] + "?" + urllib.parse.urlencode(params)
     return RedirectResponse(url)
 
 
 def auth_callback(platform: str, code: str, state: str):
-    cfg = OAUTH_CONFIG.get(platform)
-    if not cfg or cfg.get("blocked"):
-        return HTMLResponse(ERROR_POPUP_HTML.format(platform=platform))
+    meta = OAUTH_META.get(platform)
+    if not meta or meta.get("blocked"):
+        return HTMLResponse(ERROR_POPUP_HTML.format(platform=platform, message="Connection failed."))
 
     session_id = state
+    client_id, client_secret = cfg_module.get_credentials(platform)
+
+    if not client_id:
+        return HTMLResponse(ERROR_POPUP_HTML.format(
+            platform=platform,
+            message="Credentials not configured — add them in Settings first.",
+        ))
 
     token_data: dict[str, str] = {
-        "grant_type":   "authorization_code",
-        "code":         code,
-        "redirect_uri": cfg["redirect_uri"],
-        "client_id":    cfg["client_id"],
-        "client_secret": cfg["client_secret"],
+        "grant_type":    "authorization_code",
+        "code":          code,
+        "redirect_uri":  meta["redirect_uri"],
+        "client_id":     client_id,
+        "client_secret": client_secret,
     }
 
-    if cfg.get("pkce"):
+    if meta.get("pkce"):
         token_data["code_verifier"] = pkce_store.pop(session_id, "")
 
     try:
-        r = requests.post(cfg["token_url"], data=token_data, timeout=10)
+        r = requests.post(meta["token_url"], data=token_data, timeout=10)
         token_resp = r.json()
         access_token = token_resp.get("access_token")
         if not access_token:
             print(f"Token exchange failed for {platform}: {token_resp}")
-            return HTMLResponse(ERROR_POPUP_HTML.format(platform=platform))
+            return HTMLResponse(ERROR_POPUP_HTML.format(platform=platform, message="Connection failed — token exchange error."))
     except Exception as e:
         print(f"Token exchange error ({platform}): {e}")
-        return HTMLResponse(ERROR_POPUP_HTML.format(platform=platform))
+        return HTMLResponse(ERROR_POPUP_HTML.format(platform=platform, message="Connection failed — network error."))
 
     try:
         user_info = fetch_user_info(platform, access_token)
@@ -196,8 +208,8 @@ def fetch_user_info(platform: str, token: str) -> dict:
         )
         u = r.json().get("data", {})
         return {
-            "id": u.get("id"),
-            "username": u.get("username"),
+            "id":        u.get("id"),
+            "username":  u.get("username"),
             "followers": u.get("public_metrics", {}).get("followers_count", 0),
         }
     elif platform == "linkedin":

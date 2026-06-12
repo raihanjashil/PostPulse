@@ -6,6 +6,7 @@ from typing import Optional
 import auth
 import publish
 import sessions as sessions_module
+import platform_config as cfg_module
 from scorer import score_post, score_all_platforms
 
 app = FastAPI(title="SoS Content Scorer API")
@@ -116,6 +117,28 @@ def auth_disconnect(platform: str, x_session_id: Optional[str] = Header(default=
     if x_session_id and platform in sessions_module.sessions.get(x_session_id, {}):
         del sessions_module.sessions[x_session_id][platform]
     return {"ok": True}
+
+# ---- Config (OAuth credentials) ----
+
+class ConfigRequest(BaseModel):
+    platform: str
+    client_id: str
+    client_secret: str
+
+@app.get("/config")
+def get_config():
+    """Returns configured status per platform — secrets are never sent to the frontend."""
+    return cfg_module.get_all_status()
+
+@app.post("/config")
+def save_config(req: ConfigRequest):
+    cfg_module.save_config(req.platform, req.client_id.strip(), req.client_secret.strip())
+    return {"ok": True, "platform": req.platform}
+
+@app.delete("/config/{platform}")
+def clear_config(platform: str):
+    cfg_module.clear_config(platform)
+    return {"ok": True, "platform": platform}
 
 # ---- Publish ----
 
