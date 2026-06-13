@@ -303,6 +303,8 @@
           <div class="extra-input-group">
             <label class="extra-label" for="insights-youtube">▶️ YouTube URL / handle</label>
             <input type="text" id="insights-youtube" placeholder="youtube.com/@nasa or UC… ID">
+            <label class="extra-label" for="insights-youtube">▶️ YouTube channel ID</label>
+            <input type="text" id="insights-youtube" placeholder="competitor channel ID">
           </div>
           <div class="extra-input-group">
             <label class="extra-label" for="insights-facebook">📘 Facebook page URL</label>
@@ -342,45 +344,56 @@
     <div id="tab-video" class="tab-pane hidden">
       <section class="video-section">
         <div class="results-header">
-          <h2>Video Analyzer</h2>
-          <p class="results-sub">Upload a video draft — AI scores every frame and picks the best thumbnail</p>
+          <h2>AI Edit Suggestions</h2>
+          <p class="results-sub">Upload a video draft and get metadata-aware, transcript-aware edit suggestions for a target platform.</p>
         </div>
         <div class="video-upload-area" id="video-upload-area">
           <input type="file" id="video-file-input" accept="video/*" class="hidden">
           <div class="upload-prompt" id="upload-prompt">
-            <span class="upload-icon">🎬</span>
-            <span>Click to upload or drag &amp; drop</span>
-            <span class="upload-sub">MP4, MOV, AVI — max 100MB</span>
+            <span class="upload-icon">Video</span>
+            <span>Click to upload or drag and drop</span>
+            <span class="upload-sub">MP4, MOV, AVI - metadata extraction runs immediately, transcription is optional.</span>
           </div>
           <div class="upload-selected hidden" id="upload-selected">
-            <span class="upload-icon">✅</span>
+            <span class="upload-icon">Ready</span>
             <span id="upload-filename"></span>
             <button class="btn-secondary" id="btn-clear-video">Change</button>
           </div>
         </div>
         <div class="extra-inputs" style="margin-top:14px;">
           <div class="extra-input-group">
-            <label class="extra-label" for="video-topic-input">Topic</label>
-            <input type="text" id="video-topic-input" value="science innovation" placeholder="e.g. science innovation">
+            <label class="extra-label" for="video-platform-select">Target platform</label>
+            <select id="video-platform-select">
+              <option value="instagram">Instagram</option>
+              <option value="tiktok">TikTok</option>
+              <option value="twitter">X / Twitter</option>
+              <option value="youtube">YouTube</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="facebook">Facebook</option>
+            </select>
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="video-goal-input">Goal</label>
+            <input type="text" id="video-goal-input" placeholder="Optional: increase retention, drive comments, improve hook">
           </div>
         </div>
         <button class="btn-primary" id="btn-analyze-video" style="margin-top:16px;" disabled>
-          <span class="btn-icon">🔍</span> Analyze Video
+          <span class="btn-icon">AI</span> Generate AI Edit Suggestions
         </button>
 
         <div class="pipeline-steps hidden" id="video-loading">
           <div class="pipeline-step" id="step-video-frames">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">OK</div></div>
             <div class="step-info">
-              <span class="step-label">Extracting frames</span>
-              <span class="step-detail">Sampling key moments from the video with OpenCV</span>
+              <span class="step-label">Reading metadata and transcript</span>
+              <span class="step-detail">Inspecting duration, format, audio, and available speech segments</span>
             </div>
           </div>
           <div class="pipeline-step waiting" id="step-video-ai">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">OK</div></div>
             <div class="step-info">
-              <span class="step-label">AI vision analysis</span>
-              <span class="step-detail">GPT-4o-mini scoring each frame and platform fit</span>
+              <span class="step-label">Generating edit suggestions</span>
+              <span class="step-detail">OpenAI creates edit notes, captions, hashtags, and a CTA</span>
             </div>
           </div>
         </div>
@@ -403,9 +416,10 @@
               <button class="btn-primary" disabled><span class="btn-icon">✨</span> Generate AI Edit</button>
             </div>
           </div>
+          <div id="video-edit-suggestions"></div>
         </div>
       </section>
-    </div><!-- /tab-video -->
+    </div>
 
     <!-- ======== TAB: CAMPAIGN PACK ======== -->
     <div id="tab-campaign" class="tab-pane hidden">
