@@ -4,3 +4,9 @@ INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 INFO:     127.0.0.1:58133 - "GET /health HTTP/1.1" 200 OK
 INFO:     127.0.0.1:58135 - "GET /insights?instagram=nasa HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63919 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63919 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63919 - "OPTIONS /auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63919 - "GET /auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63919 - "OPTIONS /config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63919 - "GET /config HTTP/1.1" 200 OK

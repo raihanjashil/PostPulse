@@ -6,7 +6,7 @@
   <title>PostPulse — AI Content Optimizer for Stars of Science</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=Montserrat:wght@500;700;800&family=Poppins:wght@500;700&family=Oswald:wght@500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -460,6 +460,51 @@
 
         <div id="campaign-results" class="hidden">
           <div id="campaign-overall" class="insights-overall hidden"></div>
+
+          <!-- Editable poster creatives (Fabric.js) -->
+          <div id="creatives-section" class="creatives-section hidden">
+            <div class="results-header">
+              <h2>Editable Creatives</h2>
+              <p class="results-sub">AI-generated posters — click Edit to change text, fonts, colors &amp; layout, then export PNG</p>
+            </div>
+            <div class="creatives-grid">
+              <div class="creative-card" id="creative-social">
+                <div class="creative-preview-wrap">
+                  <canvas class="creative-preview" data-group="social"></canvas>
+                  <div class="creative-loading" data-group="social"><div class="step-spinner"></div><span>Generating image…</span></div>
+                </div>
+                <div class="creative-card-foot">
+                  <span class="creative-label">📱 Social <span class="creative-sub">IG · TikTok · X · YouTube</span></span>
+                  <div class="creative-actions">
+                    <button class="copy-btn creative-ai-btn" data-group="social">🤖 AI</button>
+                    <button class="copy-btn creative-pexels-btn" data-group="social">🖼️ Pexels</button>
+                    <button class="copy-btn creative-edit-btn" data-group="social">✏️ Edit</button>
+                    <button class="copy-btn creative-png-btn" data-group="social">⬇ PNG</button>
+                  </div>
+                </div>
+              </div>
+              <div class="creative-card" id="creative-linkedin">
+                <div class="creative-preview-wrap">
+                  <canvas class="creative-preview" data-group="linkedin"></canvas>
+                  <div class="creative-loading" data-group="linkedin"><div class="step-spinner"></div><span>Generating image…</span></div>
+                </div>
+                <div class="creative-card-foot">
+                  <span class="creative-label">💼 LinkedIn <span class="creative-sub">Professional</span></span>
+                  <div class="creative-actions">
+                    <button class="copy-btn creative-ai-btn" data-group="linkedin">🤖 AI</button>
+                    <button class="copy-btn creative-pexels-btn" data-group="linkedin">🖼️ Pexels</button>
+                    <button class="copy-btn creative-edit-btn" data-group="linkedin">✏️ Edit</button>
+                    <button class="copy-btn creative-png-btn" data-group="linkedin">⬇ PNG</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="results-header" id="campaign-posts-header" style="margin-top:32px;">
+            <h2>Platform Posts</h2>
+            <p class="results-sub">Ready-to-publish captions, hashtags &amp; timing per platform</p>
+          </div>
           <div id="campaign-grid" class="campaign-grid"></div>
         </div>
       </section>
@@ -473,6 +518,107 @@
 
   <div id="toast" class="toast hidden"></div>
 
+  <!-- ======== INSIGHT / INFO MODAL ======== -->
+  <div id="insight-modal" class="insight-modal hidden" role="dialog" aria-modal="true" aria-labelledby="insight-modal-title">
+    <div class="insight-modal-backdrop" id="insight-modal-backdrop"></div>
+    <div class="insight-modal-card">
+      <button class="insight-modal-close" id="insight-modal-close" aria-label="Close">✕</button>
+      <div class="insight-modal-header">
+        <span class="insight-modal-icon" id="insight-modal-icon"></span>
+        <span class="insight-modal-title" id="insight-modal-title"></span>
+      </div>
+      <div class="insight-modal-body" id="insight-modal-body"></div>
+      <div class="insight-modal-nav hidden" id="insight-modal-nav">
+        <button class="insight-modal-btn" id="insight-modal-prev">‹ Prev</button>
+        <span class="insight-modal-indicator" id="insight-modal-indicator">1 / 4</span>
+        <button class="insight-modal-btn" id="insight-modal-next">Next ›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== DESIGN EDITOR (Fabric.js) ======== -->
+  <div id="design-editor" class="design-editor hidden" role="dialog" aria-modal="true">
+    <div class="design-editor-backdrop" id="design-editor-backdrop"></div>
+    <div class="design-editor-card">
+      <div class="design-editor-head">
+        <span class="design-editor-title" id="design-editor-title">Edit Creative</span>
+        <button class="design-editor-close" id="design-editor-close" aria-label="Close">✕</button>
+      </div>
+      <div class="design-editor-body">
+        <div class="design-canvas-wrap" id="design-canvas-wrap">
+          <canvas id="design-canvas"></canvas>
+        </div>
+        <div class="design-controls">
+          <div class="dc-group">
+            <div class="dc-label">Layers</div>
+            <div class="dc-layers" id="dc-layers"></div>
+          </div>
+          <div class="dc-group" id="dc-text-group">
+            <div class="dc-label">Text</div>
+            <textarea id="dc-text" class="dc-text-input" rows="2" placeholder="Select a layer…" disabled></textarea>
+            <button class="copy-btn dc-regen-btn" id="dc-regen" disabled>✨ Regenerate options</button>
+            <div class="dc-regen-options hidden" id="dc-regen-options"></div>
+          </div>
+          <div class="dc-row">
+            <div class="dc-group dc-grow">
+              <div class="dc-label">Font</div>
+              <select id="dc-font" class="dc-select" disabled>
+                <option value="Montserrat">Montserrat</option>
+                <option value="Poppins">Poppins</option>
+                <option value="Oswald">Oswald</option>
+                <option value="Playfair Display">Playfair Display</option>
+                <option value="Space Grotesk">Space Grotesk</option>
+                <option value="Inter">Inter</option>
+              </select>
+            </div>
+            <div class="dc-group">
+              <div class="dc-label">Color</div>
+              <input type="color" id="dc-color" class="dc-color" value="#FFFFFF" disabled>
+            </div>
+          </div>
+          <div class="dc-group">
+            <div class="dc-label">Size <span id="dc-size-val">64</span>px</div>
+            <input type="range" id="dc-size" class="dc-range" min="12" max="180" value="64" disabled>
+          </div>
+          <div class="dc-group">
+            <div class="dc-label">Background</div>
+            <div class="dc-bg-actions">
+              <button class="copy-btn dc-bg-regen" id="dc-bg-regen">🤖 Generate AI</button>
+              <button class="copy-btn dc-bg-pexels" id="dc-bg-pexels">🖼️ Pexels</button>
+              <label class="copy-btn dc-bg-upload">📁 Replace
+                <input type="file" id="dc-bg-file" accept="image/*" class="hidden">
+              </label>
+            </div>
+          </div>
+          <button class="btn-primary dc-export" id="dc-export"><span class="btn-icon">⬇</span> Download PNG</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== PEXELS PHOTO PICKER ======== -->
+  <div id="pexels-modal" class="insight-modal hidden" role="dialog" aria-modal="true" aria-label="Pick a Pexels photo">
+    <div class="insight-modal-backdrop" id="pexels-backdrop"></div>
+    <div class="insight-modal-card pexels-card">
+      <button class="insight-modal-close" id="pexels-close" aria-label="Close">✕</button>
+      <div class="insight-modal-header">
+        <span class="insight-modal-icon">🖼️</span>
+        <span class="insight-modal-title">Pick a Pexels photo</span>
+      </div>
+      <div class="pexels-search-row">
+        <input type="text" id="pexels-query" class="settings-input" placeholder="Search photos…" autocomplete="off">
+        <button class="btn-primary pexels-search-btn" id="pexels-search-btn">Search</button>
+      </div>
+      <div class="insight-modal-body">
+        <div class="pexels-loading hidden" id="pexels-loading"><div class="step-spinner"></div><span>Searching Pexels…</span></div>
+        <div class="pexels-grid" id="pexels-grid"></div>
+        <div class="pexels-empty hidden" id="pexels-empty">No photos found — try a different search.</div>
+      </div>
+      <div class="pexels-credit">Photos provided by <a href="https://www.pexels.com" target="_blank" rel="noopener">Pexels</a></div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

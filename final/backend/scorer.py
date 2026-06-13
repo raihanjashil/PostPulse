@@ -477,13 +477,134 @@ Return ONLY valid JSON, no extra text, in this exact shape:
 IMPORTANT: "posts" must contain all 6 platforms listed above.
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        max_tokens=3500,
-        response_format={"type": "json_object"},
-        messages=[{"role": "user", "content": prompt}]
-    )
+    # Posts and poster creatives are generated as two separate LLM calls (kept apart so the
+    # large 6-post JSON stays reliable) and run concurrently to save wall time.
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        posts_fut = ex.submit(
+            lambda: client.chat.completions.create(
+                model="gpt-4o-mini",
+                max_tokens=3500,
+                response_format={"type": "json_object"},
+                messages=[{"role": "user", "content": prompt}],
+            )
+        )
+        creatives_fut = ex.submit(generate_creatives, campaign_goal, persona, goal)
+
+        response = posts_fut.result()
+        creatives = creatives_fut.result()
 
     raw = response.choices[0].message.content.strip()
     raw = raw.replace("```json", "").replace("```", "").strip()
-    return json.loads(raw)
+    result = json.loads(raw)
+    result["creatives"] = creatives
+    return result
+
+
+def generate_creatives(campaign_goal: str, persona: str = "general", goal: str = "reach"):
+    """Two poster creatives (short overlay text + background image prompt + theme colors):
+    a vibrant 'social' creative (IG/TikTok/X/YouTube) and a professional 'linkedin' one.
+    Returns {"social": {...}, "linkedin": {...}} with a deterministic fallback on failure."""
+    persona_info = PERSONAS.get(persona, PERSONAS["general"])
+
+    prompt = f"""You are an art director for {BRAND_PROFILE['name']} — {BRAND_PROFILE['description']}, posting to {BRAND_PROFILE['audience_note']}.
+
+THE CAMPAIGN IS SPECIFICALLY ABOUT: "{campaign_goal}"
+TARGET AUDIENCE: {persona_info['label']} — {persona_info['desc']}.
+OPTIMIZATION GOAL: {goal}.
+
+Design TWO marketing poster creatives. The text will be OVERLAID on an AI-generated background image.
+- "social": vibrant, energetic — shared across Instagram, TikTok, X and YouTube.
+- "linkedin": cleaner, professional, credible — for LinkedIn.
+
+CRITICAL — be SPECIFIC to this exact campaign, not generic:
+- The headline and subheadline MUST be about "{campaign_goal}" — name or clearly evoke its real subject/topic and the concrete benefit to the audience.
+- The background_prompt MUST depict a scene that literally illustrates "{campaign_goal}".
+- Do NOT output generic, brand-filler slogans that could apply to any campaign (e.g. "Discover Your Innovation", "Empowering Science", "Join the Revolution", "Shape the Future"). If a line would still make sense for a totally different campaign, rewrite it to be specific to "{campaign_goal}".
+
+For EACH creative provide:
+- "headline": punchy, MAX 4 words, directly about "{campaign_goal}".
+- "subheadline": supporting line, MAX 8 words, expanding on "{campaign_goal}".
+- "cta": short call to action, MAX 3 words (e.g. "Apply Now").
+- "background_prompt": vivid description of the background IMAGE ONLY (scene, mood, colors, photographic/illustration style) that illustrates "{campaign_goal}". It MUST contain NO text, NO words, NO letters and NO logos, with clean negative space for the overlay text.
+- "theme": two hex colors — "text" (high-contrast color for headline/subheadline) and "accent" (color for the CTA).
+
+Return ONLY valid JSON in this exact shape:
+{{
+  "social":   {{ "headline": "...", "subheadline": "...", "cta": "...", "background_prompt": "...", "theme": {{ "text": "#FFFFFF", "accent": "#B8D930" }} }},
+  "linkedin": {{ "headline": "...", "subheadline": "...", "cta": "...", "background_prompt": "...", "theme": {{ "text": "#FFFFFF", "accent": "#B8D930" }} }}
+}}"""
+
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=900,
+            temperature=0.9,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
+        data = json.loads(raw)
+        return {
+            "social": data.get("social") or _fallback_creative("social", campaign_goal),
+            "linkedin": data.get("linkedin") or _fallback_creative("linkedin", campaign_goal),
+        }
+    except Exception as e:
+        print(f"Creatives generation failed: {e}")
+        return {
+            "social": _fallback_creative("social", campaign_goal),
+            "linkedin": _fallback_creative("linkedin", campaign_goal),
+        }
+
+
+def _fallback_creative(group: str, campaign_goal: str):
+    headline = " ".join(campaign_goal.split()[:3]) or BRAND_PROFILE["name"]
+    if group == "linkedin":
+        return {
+            "headline": headline,
+            "subheadline": "Backing the region's next generation of innovators",
+            "cta": "Learn More",
+            "background_prompt": "clean professional innovation backdrop, deep teal, minimal, soft light, no text",
+            "theme": {"text": "#FFFFFF", "accent": "#B8D930"},
+        }
+    return {
+        "headline": headline,
+        "subheadline": "Where Arab innovation takes the stage",
+        "cta": "Apply Now",
+        "background_prompt": "vibrant futuristic science lab, teal and lime energy, dynamic, no text",
+        "theme": {"text": "#FFFFFF", "accent": "#B8D930"},
+    }
+
+
+def generate_headline_options(campaign_goal: str, group: str = "social", layer: str = "headline", persona: str = "general"):
+    """Return 5 short alternative texts for a single poster layer (headline / subheadline / cta).
+    Used by the design editor's 'Regenerate' button."""
+    persona_info = PERSONAS.get(persona, PERSONAS["general"])
+    tone = "professional, credible" if group == "linkedin" else "modern, energetic"
+    limits = {
+        "headline": "MAX 4 words, punchy",
+        "subheadline": "MAX 8 words, supporting line",
+        "cta": "MAX 3 words, an action (e.g. 'Apply Now')",
+    }
+    spec = limits.get(layer, limits["headline"])
+
+    prompt = f"""You are a marketing copywriter for {BRAND_PROFILE['name']} — {BRAND_PROFILE['description']}.
+CAMPAIGN GOAL: {campaign_goal}
+TARGET AUDIENCE: {persona_info['label']} — {persona_info['desc']}.
+Write 5 alternative options for the "{layer}" of a {group} marketing poster.
+Each option: {spec}. Tone: {tone}. No quotes, no numbering, no hashtags.
+Return ONLY valid JSON: {{ "options": ["...", "...", "...", "...", "..."] }}"""
+
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=300,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
+        data = json.loads(raw)
+        opts = [str(o).strip() for o in data.get("options", []) if str(o).strip()]
+        return {"options": opts[:5]}
+    except Exception as e:
+        print(f"Headline regen failed: {e}")
+        return {"options": []}

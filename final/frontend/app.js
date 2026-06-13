@@ -138,6 +138,9 @@ function init() {
   initTabs();
   initVideoUpload();
   initImageUpload();
+  initInsightModal();
+  initDesignEditor();
+  initPexels();
 
   $('btn-load-insights')?.addEventListener('click', onLoadInsights);
   $('btn-generate-campaign')?.addEventListener('click', onGenerateCampaign);
@@ -1208,6 +1211,7 @@ const INSIGHTS_FIELDS = {
   facebook: 'insights-facebook',
 };
 let lastInsightsSources = {};
+let lastInsightsData = null;   // full payload from the last /insights call (for the modal)
 
 async function onLoadInsights() {
   const btn        = $('btn-load-insights');
@@ -1351,12 +1355,18 @@ function renderTopPosts(sos, competitor) {
   return out ? `<div class="insight-posts"><div class="insight-posts-label">Top posts (real data)</div>${out}</div>` : '';
 }
 
+// Section explainers — moved off-page, surfaced via the (i) info icons.
+const STRATEGY_EXPLAINER = "A cross-platform read of where Stars of Science should focus. It's synthesized from the real per-platform metrics below — which platforms carry genuine engagement versus just raw reach — so effort goes where the audience actually responds.";
+const GROWTH_EXPLAINER = "Reach = audience size (likes). Conversation = how often people actually comment (per 100 likes, judged per platform). Engagement rate = (likes + comments) ÷ followers. Big reach + shallow conversation = vanity; small but deep = real community. Tap any platform to open its full AI insights.";
+
 function renderInsights(data, opts = {}) {
   const gridEl    = $('insights-grid');
   const overallEl = $('insights-overall');
   const growthEl  = $('insights-growth');
   const banner    = $('insights-mock-banner');
-  gridEl.innerHTML = '';
+  if (gridEl) { gridEl.innerHTML = ''; gridEl.classList.add('hidden'); }  // content now lives in the modal
+
+  lastInsightsData = data;  // cached so the modal can read each platform's insight on demand
 
   // Persistent mock-mode banner — fabricated data must never masquerade as real
   if (banner) {
@@ -1372,90 +1382,192 @@ function renderInsights(data, opts = {}) {
   if (data.overall_strategy) {
     overallEl.innerHTML = `
       <div class="overall-strategy-card">
-        <div class="overall-strategy-label">🎯 Cross-Platform Strategy</div>
+        <div class="overall-strategy-label">🎯 Cross-Platform Strategy
+          <button class="info-icon section-info" data-info="strategy" title="What is this?" aria-label="About Cross-Platform Strategy">i</button>
+        </div>
         <div class="overall-strategy-text">${escapeHtml(data.overall_strategy)}</div>
       </div>`;
     overallEl.classList.remove('hidden');
+    overallEl.querySelector('.section-info')?.addEventListener('click', () =>
+      openInfoModal('Cross-Platform Strategy', STRATEGY_EXPLAINER, '🎯'));
   } else {
     overallEl.classList.add('hidden');
   }
 
   // ---- Real Growth vs. Noise (side-by-side SoS vs competitor) ----
   const accounts = data.accounts || {};
+  const platformsData = data.platforms || {};
   if (growthEl && Object.keys(accounts).length) {
     const rows = INSIGHTS_PLATFORMS.map(pid => {
       const p = PLATFORMS[pid];
       const acc = accounts[pid] || {};
+      const insight = platformsData[pid];
+      const hasInsight = insight && !insight.no_data;  // clickable only when there's something to show
       const cols = [renderAcctColumn(acc.sos)];
       if (acc.competitor) cols.push(renderAcctColumn(acc.competitor));
       return `
-        <div class="growth-row">
-          <div class="growth-head"><span class="growth-platform">${p.icon} ${p.name}</span></div>
+        <div class="growth-row${hasInsight ? ' clickable' : ''}" data-platform="${pid}">
+          <div class="growth-head">
+            <span class="growth-platform">${p.icon} ${p.name}</span>
+            ${hasInsight ? `
+              <button class="info-icon" data-platform="${pid}" title="View ${p.name} insights" aria-label="View ${p.name} insights">i</button>
+              <span class="growth-row-cta">View insights →</span>` : ''}
+          </div>
           <div class="acct-compare cols-${cols.length}">${cols.join('')}</div>
         </div>`;
     }).join('');
 
     growthEl.innerHTML = `
       <div class="growth-card">
-        <div class="growth-title">📊 Real Growth vs. Noise</div>
-        <div class="growth-explainer">Reach = audience size (likes). Conversation = how often people actually comment (per 100 likes, judged per platform). Engagement rate = (likes + comments) ÷ followers. Big reach + shallow conversation = vanity; small but deep = real community.</div>
+        <div class="growth-title">📊 Real Growth vs. Noise
+          <button class="info-icon section-info" data-info="growth" title="What does this mean?" aria-label="About Real Growth vs. Noise">i</button>
+        </div>
         ${data.real_growth_summary ? `<div class="growth-summary">${escapeHtml(data.real_growth_summary)}</div>` : ''}
         <div class="growth-rows">${rows}</div>
+        <div class="growth-hint">Tap a platform to open its full AI insights →</div>
       </div>`;
     growthEl.classList.remove('hidden');
+
+    // Section info icon → explainer modal
+    growthEl.querySelector('.section-info')?.addEventListener('click', e => {
+      e.stopPropagation();
+      openInfoModal('Real Growth vs. Noise', GROWTH_EXPLAINER, '📊');
+    });
+    // Clicking a platform row (or its info icon) → 4-slide insight modal
+    growthEl.querySelectorAll('.growth-row.clickable').forEach(row => {
+      row.addEventListener('click', () => openInsightModal(row.dataset.platform));
+    });
   } else if (growthEl) {
     growthEl.classList.add('hidden');
     growthEl.innerHTML = '';
   }
+}
 
-  // ---- Per-platform insight cards (grounded, comparative, with real posts) ----
-  const platformsData = data.platforms || {};
-  INSIGHTS_PLATFORMS.forEach(pid => {
-    const p = PLATFORMS[pid];
-    const insight = platformsData[pid];
-    if (!insight) return;
-    const acc = accounts[pid] || {};
+// =============================
+// INSIGHT / INFO MODAL
+// =============================
 
-    const card = document.createElement('div');
-    card.className = 'insight-card';
+const modalState = { slides: [], idx: 0 };
 
-    if (insight.error) {
-      card.innerHTML = `
-        <div class="insight-platform-header">
-          <span class="insight-platform-icon">${p.icon}</span>
-          <span class="insight-platform-name">${p.name}</span>
+function buildInsightSlides(pid, data) {
+  const insight = (data.platforms || {})[pid] || {};
+  const acc     = (data.accounts  || {})[pid] || {};
+
+  if (insight.error) {
+    return [{ label: 'Overview', html: `<div class="insight-error">⚠️ ${escapeHtml(insight.error)}</div>` }];
+  }
+
+  const comparison = insight.comparison
+    ? `<div class="insight-comparison">⚖️ ${escapeHtml(insight.comparison)}</div>`
+    : '<div class="modal-empty">No competitor comparison for this account.</div>';
+  const patterns = (insight.patterns || []).map(pat => `<li>${escapeHtml(pat)}</li>`).join('')
+    || '<li class="modal-empty">No patterns identified.</li>';
+  const verdict = insight.growth_verdict
+    ? `<div class="insight-verdict">${escapeHtml(insight.growth_verdict)}</div>`
+    : '';
+  const posts = renderTopPosts(acc.sos, acc.competitor) || '<div class="modal-empty">No post-level data available.</div>';
+
+  return [
+    {
+      label: 'Overview',
+      html: `
+        <div class="insight-headline">${escapeHtml(insight.headline || '—')}</div>
+        ${comparison}`,
+    },
+    {
+      label: 'Patterns',
+      html: `
+        <div class="insight-patterns-label">Key Patterns</div>
+        <ul class="insight-patterns">${patterns}</ul>`,
+    },
+    {
+      label: 'Recommendation & Verdict',
+      html: `
+        <div class="insight-recommendation">
+          <span class="insight-rec-label">Recommendation</span>
+          <div class="insight-rec-text">${escapeHtml(insight.recommendation || '—')}</div>
         </div>
-        <div class="insight-error">⚠️ ${escapeHtml(insight.error)}</div>`;
-      gridEl.appendChild(card);
-      return;
-    }
+        ${verdict || '<div class="modal-empty">No verdict available.</div>'}`,
+    },
+    {
+      label: 'Post Analysis',
+      html: posts,
+    },
+  ];
+}
 
-    const sourceLine = acc.competitor
-      ? `${escapeHtml((acc.sos && acc.sos.handle) ? 'Stars of Science' : 'Stars of Science')} vs ${escapeHtml(acc.competitor.handle || 'competitor')}`
-      : 'Stars of Science';
-    const comparison = insight.comparison ? `<div class="insight-comparison">⚖️ ${escapeHtml(insight.comparison)}</div>` : '';
-    const verdict = insight.growth_verdict ? `<div class="insight-verdict">${escapeHtml(insight.growth_verdict)}</div>` : '';
+function openInsightModal(pid) {
+  if (!lastInsightsData) return;
+  const p = PLATFORMS[pid];
+  openModal({
+    icon: p?.icon || '📊',
+    title: `${p?.name || pid} — Account Insights`,
+    slides: buildInsightSlides(pid, lastInsightsData),
+  });
+}
 
-    card.innerHTML = `
-      <div class="insight-platform-header">
-        <span class="insight-platform-icon">${p.icon}</span>
-        <span class="insight-platform-name">${p.name}</span>
-        <span class="insight-source">${sourceLine}</span>
-      </div>
-      <div class="insight-headline">${escapeHtml(insight.headline || '—')}</div>
-      ${comparison}
-      <div class="insight-patterns-label">Key Patterns</div>
-      <ul class="insight-patterns">
-        ${(insight.patterns || []).map(pat => `<li>${escapeHtml(pat)}</li>`).join('')}
-      </ul>
-      <div class="insight-recommendation">
-        <span class="insight-rec-label">Recommendation</span>
-        <div class="insight-rec-text">${escapeHtml(insight.recommendation || '—')}</div>
-      </div>
-      ${verdict}
-      ${renderTopPosts(acc.sos, acc.competitor)}
-    `;
-    gridEl.appendChild(card);
+function openInfoModal(title, text, icon = 'ℹ️') {
+  openModal({ icon, title, slides: [{ html: `<div class="modal-text">${escapeHtml(text)}</div>` }] });
+}
+
+function openModal({ icon = 'ℹ️', title = '', slides = [] }) {
+  const modal = $('insight-modal');
+  if (!modal) return;
+  modalState.slides = slides;
+  modalState.idx = 0;
+  $('insight-modal-icon').textContent = icon;
+  $('insight-modal-title').textContent = title;
+  renderModalSlide();
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function renderModalSlide() {
+  const { slides, idx } = modalState;
+  const slide = slides[idx] || { html: '' };
+  const body  = $('insight-modal-body');
+  const nav   = $('insight-modal-nav');
+
+  body.innerHTML = `
+    <div class="insight-modal-slide">
+      ${slide.label ? `<div class="insight-modal-slide-label">${escapeHtml(slide.label)}</div>` : ''}
+      ${slide.html}
+    </div>`;
+
+  if (slides.length > 1) {
+    nav.classList.remove('hidden');
+    $('insight-modal-indicator').textContent = `${idx + 1} / ${slides.length}`;
+    $('insight-modal-prev').disabled = idx === 0;
+    $('insight-modal-next').disabled = idx === slides.length - 1;
+  } else {
+    nav.classList.add('hidden');
+  }
+}
+
+function modalStep(delta) {
+  const next = modalState.idx + delta;
+  if (next < 0 || next >= modalState.slides.length) return;
+  modalState.idx = next;
+  renderModalSlide();
+}
+
+function closeModal() {
+  $('insight-modal')?.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+function initInsightModal() {
+  const modal = $('insight-modal');
+  if (!modal) return;
+  $('insight-modal-close')?.addEventListener('click', closeModal);
+  $('insight-modal-backdrop')?.addEventListener('click', closeModal);
+  $('insight-modal-prev')?.addEventListener('click', () => modalStep(-1));
+  $('insight-modal-next')?.addEventListener('click', () => modalStep(1));
+  document.addEventListener('keydown', e => {
+    if (modal.classList.contains('hidden')) return;
+    if (e.key === 'Escape') closeModal();
+    else if (e.key === 'ArrowLeft') modalStep(-1);
+    else if (e.key === 'ArrowRight') modalStep(1);
   });
 }
 
@@ -2094,6 +2206,8 @@ function renderCampaign(data) {
   const gridEl    = $('campaign-grid');
   gridEl.innerHTML = '';
 
+  renderCreatives(data);
+
   if (data.overall_note) {
     overallEl.innerHTML = `
       <div class="overall-strategy-card">
@@ -2177,11 +2291,598 @@ function generateMockCampaign(goalText, persona) {
       rationale: `[Mock] ${p.name}-specific framing.`,
     };
   });
+  const shortGoal = goalText.split(/\s+/).slice(0, 3).join(' ');
   return {
     campaign_goal: goalText,
     posts,
+    creatives: {
+      social: {
+        headline: shortGoal || 'Stars of Science',
+        subheadline: 'Where Arab innovation takes the stage',
+        cta: 'Apply Now',
+        background_prompt: 'vibrant futuristic science lab, teal and lime energy, no text',
+        theme: { text: '#FFFFFF', accent: '#B8D930' },
+      },
+      linkedin: {
+        headline: shortGoal || 'Stars of Science',
+        subheadline: 'Backing the region’s next generation of innovators',
+        cta: 'Learn More',
+        background_prompt: 'clean professional innovation backdrop, deep teal, minimal, no text',
+        theme: { text: '#FFFFFF', accent: '#B8D930' },
+      },
+    },
     overall_note: `[Mock] A coordinated 6-platform push for "${goalText}" — lead with the hook on TikTok/Instagram, drive applications via the link on X/LinkedIn, and sustain reach on YouTube/Facebook.`,
   };
+}
+
+// =============================
+// CAMPAIGN CREATIVES — DESIGN MODEL + FABRIC EDITOR
+// =============================
+
+// Which generated image each platform uses (Facebook grouped with social).
+const CREATIVE_GROUP = {
+  instagram: 'social', tiktok: 'social', twitter: 'social', youtube: 'social',
+  facebook: 'social', linkedin: 'linkedin',
+};
+
+// Canvas sizes + layer layouts per group (positions are in design-space pixels).
+const DESIGN_TEMPLATES = {
+  social: {
+    width: 1080, height: 1080,
+    gradient: ['#0D7377', '#B8D930'],
+    layers: (c, theme) => ([
+      { id: 'headline',    text: c.headline || 'Your Headline',      x: 80, y: 140, fontSize: 104, fontFamily: 'Montserrat', fontWeight: '800', fill: theme.text,   width: 920 },
+      { id: 'subheadline', text: c.subheadline || '',                x: 80, y: 380, fontSize: 48,  fontFamily: 'Poppins',    fontWeight: '600', fill: theme.text,   width: 900 },
+      { id: 'cta',         text: c.cta || 'Learn More',              x: 80, y: 900, fontSize: 56,  fontFamily: 'Montserrat', fontWeight: '700', fill: theme.accent, width: 700 },
+    ]),
+  },
+  linkedin: {
+    width: 1200, height: 627,
+    gradient: ['#0A1E24', '#0D7377'],
+    layers: (c, theme) => ([
+      { id: 'headline',    text: c.headline || 'Your Headline',      x: 64, y: 110, fontSize: 80, fontFamily: 'Poppins', fontWeight: '700', fill: theme.text,   width: 800 },
+      { id: 'subheadline', text: c.subheadline || '',                x: 64, y: 250, fontSize: 38, fontFamily: 'Inter',   fontWeight: '500', fill: theme.text,   width: 820 },
+      { id: 'cta',         text: c.cta || 'Learn More',              x: 64, y: 470, fontSize: 42, fontFamily: 'Poppins', fontWeight: '700', fill: theme.accent, width: 560 },
+    ]),
+  },
+};
+
+const PREVIEW_W = 320;       // px width of the small card preview
+const EDITOR_MAX_W = 560;    // max on-screen canvas width in the editor
+
+let campaignDesigns = {};    // { social: design, linkedin: design }
+const editorState = { group: null, design: null, canvas: null, scale: 1, displayW: 0, displayH: 0, activeId: null };
+
+// ---- font loading (canvas needs glyphs ready before measuring) ----
+let _fontsReady = null;
+function ensureFonts() {
+  if (_fontsReady) return _fontsReady;
+  const specs = [
+    '800 96px Montserrat', '700 56px Montserrat', '700 80px Poppins', '600 48px Poppins',
+    '700 64px Oswald', '700 64px "Playfair Display"', '700 64px "Space Grotesk"', '500 48px Inter',
+  ];
+  _fontsReady = Promise.all(specs.map(s => document.fonts.load(s).catch(() => {})))
+    .then(() => document.fonts.ready);
+  return _fontsReady;
+}
+
+function loadImage(src) {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+}
+
+function fillGradient(ctx, w, h, colors) {
+  const g = ctx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, colors[0]); g.addColorStop(1, colors[1]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+}
+
+function gradientToDataUrl(w, h, colors) {
+  const c = document.createElement('canvas');
+  const ratio = h / w;
+  c.width = 256; c.height = Math.round(256 * ratio);
+  fillGradient(c.getContext('2d'), c.width, c.height, colors);
+  return c.toDataURL('image/png');
+}
+
+function drawWrapped(ctx, text, x, y, maxW, lineH) {
+  const words = String(text || '').split(/\s+/);
+  let line = '', yy = y;
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (ctx.measureText(test).width > maxW && line) { ctx.fillText(line, x, yy); line = word; yy += lineH; }
+    else line = test;
+  }
+  if (line) ctx.fillText(line, x, yy);
+}
+
+// Paint a design onto a 2D canvas at a target width (used for previews + standalone export).
+async function paintDesign(canvasEl, design, targetWidth) {
+  await ensureFonts();
+  const scale = targetWidth / design.width;
+  const w = Math.round(targetWidth), h = Math.round(design.height * scale);
+  canvasEl.width = w; canvasEl.height = h;
+  const ctx = canvasEl.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+
+  const grad = design.background?.gradient || DESIGN_TEMPLATES[design.group].gradient;
+  if (design.background?.dataUrl) {
+    try {
+      const img = await loadImage(design.background.dataUrl);
+      const s = Math.max(w / img.width, h / img.height);
+      const iw = img.width * s, ih = img.height * s;
+      ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih);
+    } catch { fillGradient(ctx, w, h, grad); }
+  } else {
+    fillGradient(ctx, w, h, grad);
+  }
+
+  design.layers.forEach(layer => {
+    ctx.save();
+    ctx.fillStyle = layer.fill;
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0,0,0,0.45)';
+    ctx.shadowBlur = 8 * scale; ctx.shadowOffsetY = 2 * scale;
+    const fs = layer.fontSize * scale;
+    ctx.font = `${layer.fontWeight || '700'} ${fs}px "${layer.fontFamily}"`;
+    drawWrapped(ctx, layer.text, layer.x * scale, layer.y * scale, layer.width * scale, fs * 1.15);
+    ctx.restore();
+  });
+}
+
+function buildDesigns(creatives) {
+  campaignDesigns = {};
+  ['social', 'linkedin'].forEach(group => {
+    const c = (creatives && creatives[group]) || {};
+    const theme = c.theme && c.theme.text ? c.theme : { text: '#FFFFFF', accent: '#B8D930' };
+    const tpl = DESIGN_TEMPLATES[group];
+    campaignDesigns[group] = {
+      group, width: tpl.width, height: tpl.height,
+      background_prompt: c.background_prompt || '',
+      background: { source: 'gradient', dataUrl: gradientToDataUrl(tpl.width, tpl.height, tpl.gradient), gradient: tpl.gradient },
+      layers: tpl.layers(c, theme),
+    };
+  });
+}
+
+function previewCanvas(group) { return document.querySelector(`.creative-preview[data-group="${group}"]`); }
+function previewLoading(group) { return document.querySelector(`.creative-loading[data-group="${group}"]`); }
+
+async function renderPreview(group) {
+  const el = previewCanvas(group);
+  if (el && campaignDesigns[group]) await paintDesign(el, campaignDesigns[group], PREVIEW_W);
+}
+
+// Apply a resolved background (AI / Pexels / upload) to a creative — updates the
+// design model, the card preview, and the live editor canvas if it's open on that group.
+function applyBackgroundToGroup(group, dataUrl, source, gradient) {
+  const design = campaignDesigns[group];
+  if (!design || !dataUrl) return;
+  design.background = { source, dataUrl, gradient: gradient || design.background.gradient };
+  renderPreview(group);
+  if (editorState.group === group && !$('design-editor').classList.contains('hidden')) {
+    setEditorBackground(dataUrl);
+  }
+}
+
+// Generate an AI background on demand (card "AI" button + editor "Generate AI").
+async function generateAIForGroup(group) {
+  const design = campaignDesigns[group];
+  if (!design) return;
+  if (!state.backendLive) { showToast('Connect the backend to generate an AI image', 'warn'); return; }
+  const loadingEl = previewLoading(group);
+  loadingEl?.classList.remove('hidden');
+  try {
+    const res = await apiFetch('/generate-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: design.background_prompt || '', group }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.image) { applyBackgroundToGroup(group, data.image, 'openai'); showToast('AI background applied'); }
+      else if (Array.isArray(data.gradient)) { applyBackgroundToGroup(group, gradientToDataUrl(design.width, design.height, data.gradient), 'fallback', data.gradient); showToast('Image API unavailable — used gradient', 'warn'); }
+    } else { showToast('Image generation failed', 'error'); }
+  } catch { showToast('Image generation failed', 'error'); }
+  loadingEl?.classList.add('hidden');
+}
+
+async function renderCreatives(data) {
+  const section = $('creatives-section');
+  if (!section) return;
+  if (!data.creatives) { section.classList.add('hidden'); return; }
+
+  section.classList.remove('hidden');
+  buildDesigns(data.creatives);
+  ['social', 'linkedin'].forEach(g => previewLoading(g)?.classList.add('hidden'));
+  await ensureFonts();
+  await Promise.all(['social', 'linkedin'].map(renderPreview));
+  // No auto image generation — the user explicitly picks AI or a Pexels photo per creative.
+}
+
+// ---- Fabric editor ----
+function getEditorCanvas() {
+  if (!editorState.canvas) {
+    editorState.canvas = new fabric.Canvas('design-canvas', { preserveObjectStacking: true });
+    const canvas = editorState.canvas;
+    canvas.on('selection:created', e => setActiveLayer(e.selected?.[0]));
+    canvas.on('selection:updated', e => setActiveLayer(e.selected?.[0]));
+    canvas.on('selection:cleared', () => setActiveLayer(null));
+    canvas.on('object:modified', e => syncFromObject(e.target));
+    canvas.on('object:moving', e => syncFromObject(e.target));
+    canvas.on('text:changed', e => { syncFromObject(e.target); renderLayerList(); });
+  }
+  return editorState.canvas;
+}
+
+function layerForObject(obj) {
+  return obj && editorState.design ? editorState.design.layers.find(l => l.id === obj.layerId) : null;
+}
+
+function syncFromObject(obj) {
+  const layer = layerForObject(obj);
+  if (!layer) return;
+  const s = editorState.scale;
+  layer.x = obj.left / s;
+  layer.y = obj.top / s;
+  layer.width = obj.getScaledWidth() / s;
+  layer.fontSize = (obj.fontSize * (obj.scaleY || 1)) / s;
+  layer.fontFamily = obj.fontFamily;
+  layer.fill = obj.fill;
+  layer.text = obj.text;
+  // Normalize any scaling back into fontSize/width so future math stays clean.
+  if ((obj.scaleX && obj.scaleX !== 1) || (obj.scaleY && obj.scaleY !== 1)) {
+    obj.set({ width: obj.getScaledWidth(), fontSize: obj.fontSize * obj.scaleY, scaleX: 1, scaleY: 1 });
+  }
+}
+
+async function openDesignEditor(group) {
+  const design = campaignDesigns[group];
+  if (!design) return;
+  editorState.group = group;
+  editorState.design = design;
+  editorState.activeId = null;
+
+  const displayW = Math.min(design.width, EDITOR_MAX_W);
+  const scale = displayW / design.width;
+  const displayH = Math.round(design.height * scale);
+  editorState.scale = scale; editorState.displayW = displayW; editorState.displayH = displayH;
+
+  $('design-editor-title').textContent = group === 'linkedin' ? 'Edit LinkedIn Creative' : 'Edit Social Creative';
+  $('design-editor').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+
+  const canvas = getEditorCanvas();
+  canvas.clear();
+  canvas.setWidth(displayW);
+  canvas.setHeight(displayH);
+
+  await ensureFonts();
+
+  // Background (cover-fit)
+  const applyBg = () => new Promise(resolve => {
+    fabric.Image.fromURL(design.background.dataUrl, img => {
+      const s = Math.max(displayW / img.width, displayH / img.height);
+      img.set({ originX: 'left', originY: 'top', left: (displayW - img.width * s) / 2, top: (displayH - img.height * s) / 2, scaleX: s, scaleY: s });
+      canvas.setBackgroundImage(img, () => { canvas.requestRenderAll(); resolve(); });
+    });
+  });
+  await applyBg();
+
+  // Text layers
+  design.layers.forEach(layer => {
+    const tb = new fabric.Textbox(layer.text, {
+      left: layer.x * scale, top: layer.y * scale,
+      width: layer.width * scale, fontSize: layer.fontSize * scale,
+      fontFamily: layer.fontFamily, fontWeight: layer.fontWeight || '700',
+      fill: layer.fill, editable: true,
+      shadow: 'rgba(0,0,0,0.45) 0px 2px 8px',
+      lockScalingFlip: true,
+    });
+    tb.layerId = layer.id;
+    canvas.add(tb);
+  });
+  canvas.requestRenderAll();
+  ensureFonts().then(() => canvas.requestRenderAll());
+
+  renderLayerList();
+  setActiveLayer(null);
+}
+
+function renderLayerList() {
+  const wrap = $('dc-layers');
+  if (!wrap || !editorState.design) return;
+  wrap.innerHTML = '';
+  editorState.design.layers.forEach(layer => {
+    const btn = document.createElement('button');
+    btn.className = `dc-layer-btn${layer.id === editorState.activeId ? ' active' : ''}`;
+    btn.textContent = `${layer.id}: ${layer.text || '(empty)'}`;
+    btn.addEventListener('click', () => {
+      const obj = editorState.canvas.getObjects().find(o => o.layerId === layer.id);
+      if (obj) { editorState.canvas.setActiveObject(obj); editorState.canvas.requestRenderAll(); setActiveLayer(obj); }
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+function setActiveLayer(obj) {
+  const layer = layerForObject(obj);
+  editorState.activeId = layer ? layer.id : null;
+
+  const enabled = !!layer;
+  ['dc-text', 'dc-font', 'dc-color', 'dc-size', 'dc-regen'].forEach(id => { const el = $(id); if (el) el.disabled = !enabled; });
+  $('dc-regen-options')?.classList.add('hidden');
+
+  if (layer) {
+    $('dc-text').value = layer.text;
+    $('dc-font').value = layer.fontFamily;
+    $('dc-color').value = toHex(layer.fill);
+    $('dc-size').value = Math.round(layer.fontSize);
+    $('dc-size-val').textContent = Math.round(layer.fontSize);
+  } else {
+    $('dc-text').value = '';
+  }
+  renderLayerList();
+}
+
+function toHex(c) {
+  if (!c) return '#FFFFFF';
+  if (c[0] === '#') return c.length === 4 ? '#' + [...c.slice(1)].map(x => x + x).join('') : c;
+  const m = c.match(/\d+/g);
+  if (!m) return '#FFFFFF';
+  return '#' + m.slice(0, 3).map(n => Number(n).toString(16).padStart(2, '0')).join('');
+}
+
+function activeObject() { return editorState.canvas?.getActiveObject(); }
+
+function initDesignEditor() {
+  // Card buttons (present in DOM from load)
+  document.querySelectorAll('.creative-edit-btn').forEach(btn =>
+    btn.addEventListener('click', () => openDesignEditor(btn.dataset.group)));
+  document.querySelectorAll('.creative-png-btn').forEach(btn =>
+    btn.addEventListener('click', () => exportGroupPNG(btn.dataset.group)));
+
+  const close = () => { $('design-editor').classList.add('hidden'); document.body.style.overflow = ''; if (editorState.group) renderPreview(editorState.group); };
+  $('design-editor-close')?.addEventListener('click', close);
+  $('design-editor-backdrop')?.addEventListener('click', close);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !$('design-editor').classList.contains('hidden')) {
+      // don't close while editing text inside the canvas
+      if (!(activeObject() && activeObject().isEditing)) close();
+    }
+  });
+
+  $('dc-text')?.addEventListener('input', e => {
+    const obj = activeObject(); if (!obj) return;
+    obj.set('text', e.target.value); editorState.canvas.requestRenderAll(); syncFromObject(obj); renderLayerList();
+  });
+  $('dc-font')?.addEventListener('change', e => {
+    const obj = activeObject(); if (!obj) return;
+    obj.set('fontFamily', e.target.value);
+    ensureFonts().then(() => editorState.canvas.requestRenderAll());
+    editorState.canvas.requestRenderAll(); syncFromObject(obj);
+  });
+  $('dc-color')?.addEventListener('input', e => {
+    const obj = activeObject(); if (!obj) return;
+    obj.set('fill', e.target.value); editorState.canvas.requestRenderAll(); syncFromObject(obj);
+  });
+  $('dc-size')?.addEventListener('input', e => {
+    const obj = activeObject(); if (!obj) return;
+    const v = Number(e.target.value);
+    $('dc-size-val').textContent = v;
+    obj.set({ fontSize: v * editorState.scale, scaleX: 1, scaleY: 1 });
+    editorState.canvas.requestRenderAll(); syncFromObject(obj);
+  });
+
+  $('dc-regen')?.addEventListener('click', onRegenerateLayer);
+  $('dc-bg-regen')?.addEventListener('click', onRegenerateBackground);
+  $('dc-bg-file')?.addEventListener('change', onReplaceBackground);
+  $('dc-export')?.addEventListener('click', () => exportEditorPNG());
+}
+
+async function onRegenerateLayer() {
+  if (!editorState.activeId || !lastCampaign) return;
+  const btn = $('dc-regen');
+  const optsEl = $('dc-regen-options');
+  btn.disabled = true; btn.textContent = '✨ Thinking…';
+  let options = [];
+  try {
+    if (state.backendLive) {
+      const res = await apiFetch('/regenerate-layer', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_goal: lastCampaign.campaign_goal || '',
+          group: editorState.group, layer: editorState.activeId,
+          persona: $('campaign-persona')?.value || 'general',
+        }),
+      });
+      if (res.ok) options = (await res.json()).options || [];
+    }
+  } catch { /* fall through to mock */ }
+  if (!options.length) {
+    options = ['Bank Smarter', 'Built for You', 'Your Future Starts Here', 'Join the Stars', 'Apply Today'];
+  }
+  optsEl.innerHTML = '';
+  options.forEach(opt => {
+    const b = document.createElement('button');
+    b.className = 'dc-regen-option'; b.textContent = opt;
+    b.addEventListener('click', () => {
+      const obj = activeObject(); if (!obj) return;
+      obj.set('text', opt); editorState.canvas.requestRenderAll(); syncFromObject(obj);
+      $('dc-text').value = opt; renderLayerList(); optsEl.classList.add('hidden');
+    });
+    optsEl.appendChild(b);
+  });
+  optsEl.classList.remove('hidden');
+  btn.disabled = false; btn.textContent = '✨ Regenerate options';
+}
+
+async function onRegenerateBackground() {
+  if (!editorState.group) return;
+  const btn = $('dc-bg-regen');
+  btn.disabled = true; btn.textContent = '🤖 Generating…';
+  await generateAIForGroup(editorState.group);
+  btn.disabled = false; btn.textContent = '🤖 Generate AI';
+}
+
+function onReplaceBackground(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    editorState.design.background = { source: 'upload', dataUrl: reader.result, gradient: editorState.design.background.gradient };
+    await setEditorBackground(reader.result);
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function setEditorBackground(dataUrl) {
+  return new Promise(resolve => {
+    const canvas = editorState.canvas;
+    const { displayW, displayH } = editorState;
+    fabric.Image.fromURL(dataUrl, img => {
+      const s = Math.max(displayW / img.width, displayH / img.height);
+      img.set({ originX: 'left', originY: 'top', left: (displayW - img.width * s) / 2, top: (displayH - img.height * s) / 2, scaleX: s, scaleY: s });
+      canvas.setBackgroundImage(img, () => { canvas.requestRenderAll(); resolve(); });
+    });
+  });
+}
+
+function downloadDataUrl(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+function exportEditorPNG() {
+  const canvas = editorState.canvas;
+  if (!canvas) return;
+  canvas.discardActiveObject(); canvas.requestRenderAll();
+  const multiplier = editorState.design.width / editorState.displayW;
+  const dataUrl = canvas.toDataURL({ format: 'png', multiplier });
+  downloadDataUrl(dataUrl, `${editorState.group}-creative.png`);
+  showToast('PNG downloaded');
+}
+
+// Standalone export straight from the card (renders the design at full resolution).
+async function exportGroupPNG(group) {
+  const design = campaignDesigns[group];
+  if (!design) return;
+  const off = document.createElement('canvas');
+  await paintDesign(off, design, design.width);
+  downloadDataUrl(off.toDataURL('image/png'), `${group}-creative.png`);
+  showToast('PNG downloaded');
+}
+
+// =============================
+// PEXELS PHOTO PICKER
+// =============================
+
+let pexelsTarget = null;   // which creative group the picked photo applies to
+
+function closePexels() {
+  $('pexels-modal')?.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+function initPexels() {
+  // Creative card source buttons
+  document.querySelectorAll('.creative-ai-btn').forEach(b =>
+    b.addEventListener('click', () => generateAIForGroup(b.dataset.group)));
+  document.querySelectorAll('.creative-pexels-btn').forEach(b =>
+    b.addEventListener('click', () => openPexelsPicker(b.dataset.group)));
+
+  // Editor background buttons
+  $('dc-bg-pexels')?.addEventListener('click', () => { if (editorState.group) openPexelsPicker(editorState.group); });
+
+  // Modal controls
+  $('pexels-close')?.addEventListener('click', closePexels);
+  $('pexels-backdrop')?.addEventListener('click', closePexels);
+  $('pexels-search-btn')?.addEventListener('click', () => searchPexels());
+  $('pexels-query')?.addEventListener('keydown', e => { if (e.key === 'Enter') searchPexels(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !$('pexels-modal').classList.contains('hidden')) closePexels();
+  });
+}
+
+// Seed the search box from the creative's background prompt (strip the "no text" tail).
+function pexelsQueryFromDesign(group) {
+  const design = campaignDesigns[group];
+  const prompt = (design?.background_prompt || '').replace(/[,.]?\s*no text.*$/i, '').trim();
+  return prompt.split(/\s+/).slice(0, 6).join(' ') || 'science innovation';
+}
+
+function openPexelsPicker(group) {
+  if (!campaignDesigns[group]) return;
+  pexelsTarget = group;
+  $('pexels-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  $('pexels-query').value = pexelsQueryFromDesign(group);
+  searchPexels();
+}
+
+async function searchPexels() {
+  const grid = $('pexels-grid');
+  const loading = $('pexels-loading');
+  const empty = $('pexels-empty');
+  const query = $('pexels-query').value.trim();
+  grid.innerHTML = '';
+  empty.classList.add('hidden');
+
+  if (!state.backendLive) {
+    empty.textContent = 'Connect the backend to search Pexels.';
+    empty.classList.remove('hidden');
+    return;
+  }
+
+  loading.classList.remove('hidden');
+  let photos = [];
+  try {
+    const res = await apiFetch('/pexels/search', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, group: pexelsTarget }),
+    });
+    if (res.ok) photos = (await res.json()).photos || [];
+  } catch { /* handled below */ }
+  loading.classList.add('hidden');
+
+  if (!photos.length) {
+    empty.textContent = 'No photos found — try a different search.';
+    empty.classList.remove('hidden');
+    return;
+  }
+
+  photos.forEach(ph => {
+    const div = document.createElement('div');
+    div.className = 'pexels-thumb';
+    if (ph.photographer) div.title = `Photo by ${ph.photographer}`;
+    div.innerHTML = `<img src="${ph.thumb}" alt="${escapeHtml(ph.alt || '')}" loading="lazy">` +
+      (ph.photographer ? `<span class="pexels-credit-tag">📷 ${escapeHtml(ph.photographer)}</span>` : '');
+    div.addEventListener('click', () => applyPexelsPhoto(ph.full, div));
+    grid.appendChild(div);
+  });
+}
+
+async function applyPexelsPhoto(url, thumbEl) {
+  if (!pexelsTarget) return;
+  if (thumbEl) thumbEl.style.opacity = '0.5';
+  try {
+    const res = await apiFetch('/pexels/image', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.image) {
+        applyBackgroundToGroup(pexelsTarget, data.image, 'pexels');
+        closePexels();
+        showToast('Pexels photo applied');
+        return;
+      }
+    }
+    showToast('Could not load that photo', 'error');
+  } catch { showToast('Could not load that photo', 'error'); }
+  if (thumbEl) thumbEl.style.opacity = '';
 }
 
 // ---- BOOT ----

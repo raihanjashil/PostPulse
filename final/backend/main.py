@@ -11,7 +11,9 @@ import publish
 import sessions as sessions_module
 import platform_config as cfg_module
 import video_analyzer
-from scorer import score_post, score_all_platforms, recommend_publishing, generate_account_insights, generate_campaign_pack
+import image_gen
+import pexels
+from scorer import score_post, score_all_platforms, recommend_publishing, generate_account_insights, generate_campaign_pack, generate_headline_options
 
 app = FastAPI(title="SoS Content Scorer API")
 
@@ -40,6 +42,23 @@ class CampaignRequest(BaseModel):
     campaign_goal: str
     persona: str = "general"  # "general" | "applicants" | "viewers" | "sponsors"
     goal: str = "reach"       # "reach" | "engagement" | "conversions"
+
+class GenerateImageRequest(BaseModel):
+    prompt: str
+    group: str = "social"     # "social" | "linkedin"
+
+class RegenerateLayerRequest(BaseModel):
+    campaign_goal: str
+    group: str = "social"     # "social" | "linkedin"
+    layer: str = "headline"   # "headline" | "subheadline" | "cta"
+    persona: str = "general"
+
+class PexelsSearchRequest(BaseModel):
+    query: str
+    group: str = "social"     # "social" | "linkedin"
+
+class PexelsImageRequest(BaseModel):
+    url: str
 
 # ---- Health ----
 
@@ -179,6 +198,26 @@ def insights(
 @app.post("/campaign")
 def campaign(req: CampaignRequest):
     return generate_campaign_pack(req.campaign_goal, req.persona, req.goal)
+
+# ---- Campaign Creatives (poster background image + layer regeneration) ----
+
+@app.post("/generate-image")
+def generate_image(req: GenerateImageRequest):
+    return image_gen.generate_background(req.prompt, req.group)
+
+@app.post("/regenerate-layer")
+def regenerate_layer(req: RegenerateLayerRequest):
+    return generate_headline_options(req.campaign_goal, req.group, req.layer, req.persona)
+
+# ---- Pexels stock photos (alternative creative background source) ----
+
+@app.post("/pexels/search")
+def pexels_search(req: PexelsSearchRequest):
+    return {"photos": pexels.search(req.query, req.group)}
+
+@app.post("/pexels/image")
+def pexels_image(req: PexelsImageRequest):
+    return pexels.fetch_as_data_url(req.url)
 
 # ---- Video Analyzer ----
 
