@@ -1,0 +1,17 @@
+.git
+.gitignore
+.claude/
+__pycache__/
+**/__pycache__/
+*.pyc
+.venv
+venv/
+node_modules/
+*.log
+.env
+.env.*
+final/backend/platform_config.json
+final/backend/edited_video.mp4
+**/*.mp4
+fix/
+*.md
