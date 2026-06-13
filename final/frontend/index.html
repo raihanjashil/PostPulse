@@ -4,617 +4,419 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PostPulse — AI Content Optimizer for Stars of Science</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="description" content="PostPulse scores, rewrites, and packages your social content against real Stars of Science performance data — across every platform.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=Montserrat:wght@500;700;800&family=Poppins:wght@500;700&family=Oswald:wght@500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* =========================================================
+       POSTPULSE — LANDING
+       Palette: white · black · lavender (shared with the product)
+       ========================================================= */
+    :root {
+      --lav:        #7C5CFF;   /* primary lavender accent */
+      --lav-dark:   #6A45F0;   /* hover */
+      --lav-soft:   #F1ECFF;   /* soft wash */
+      --lav-soft-2: #EDE7FF;
+      --ink:        #16151C;   /* near-black */
+      --ink-2:      #2A2833;
+      --muted:      #56535F;
+      --faint:      #9C99AB;
+      --line:       #E6E4EE;
+      --surface:    #F8F7FC;
+      --white:      #FFFFFF;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: var(--font-body);
+      color: var(--ink);
+      background: var(--white);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    .wrap { width: 100%; max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+
+    /* ---- NAV ---- */
+    .nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(255,255,255,0.82);
+      backdrop-filter: saturate(180%) blur(12px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+    .brand { display: flex; align-items: center; gap: 9px; font-family: var(--font-display); font-weight: 700; font-size: 1.18rem; letter-spacing: -0.02em; }
+    .brand .mark { color: var(--lav); font-size: 1.3rem; }
+    .brand .tag { font-family: var(--font-body); font-weight: 500; font-size: 0.72rem; color: var(--faint); padding-left: 9px; margin-left: 2px; border-left: 1px solid var(--line); }
+    .nav-links { display: flex; align-items: center; gap: 30px; }
+    .nav-links a { font-size: 0.9rem; font-weight: 500; color: var(--muted); transition: color 0.15s; }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-cta { display: flex; align-items: center; gap: 14px; }
+
+    /* ---- BUTTONS ---- */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--font-body); font-weight: 600; font-size: 0.92rem;
+      border-radius: var(--r-sm); cursor: pointer; border: 1px solid transparent;
+      transition: transform 0.12s ease, background 0.15s, box-shadow 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--lav); color: #fff; padding: 12px 22px; box-shadow: 0 6px 18px rgba(124,92,255,0.28); }
+    .btn-primary:hover { background: var(--lav-dark); box-shadow: 0 10px 26px rgba(124,92,255,0.34); }
+    .btn-ghost { background: transparent; color: var(--ink); padding: 12px 20px; border-color: var(--line); }
+    .btn-ghost:hover { border-color: var(--ink); }
+    .btn-sm { padding: 9px 18px; font-size: 0.88rem; }
+    .btn-lg { padding: 15px 30px; font-size: 1rem; border-radius: 12px; }
+
+    /* ---- HERO ---- */
+    .hero { position: relative; overflow: hidden; padding: 96px 0 84px; }
+    .hero::before {
+      content: ""; position: absolute; inset: 0; z-index: -1;
+      background:
+        radial-gradient(60% 50% at 78% 8%, rgba(124,92,255,0.16), transparent 70%),
+        radial-gradient(45% 40% at 12% 18%, rgba(183,164,255,0.18), transparent 70%),
+        linear-gradient(180deg, var(--surface), var(--white) 62%);
+    }
+    .hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items: center; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--white); border: 1px solid var(--line);
+      color: var(--lav-dark); font-weight: 600; font-size: 0.78rem;
+      padding: 7px 14px; border-radius: 100px; box-shadow: 0 2px 8px rgba(22,21,28,0.04);
+    }
+    .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lav); }
+    h1.hero-title {
+      font-family: var(--font-display); font-weight: 700;
+      font-size: clamp(2.6rem, 5.2vw, 4.1rem); line-height: 1.04;
+      letter-spacing: -0.035em; color: var(--ink); margin: 22px 0 0;
+    }
+    h1.hero-title .accent { color: var(--lav); }
+    .hero-sub { font-size: 1.12rem; color: var(--muted); max-width: 520px; margin-top: 20px; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
+    .hero-meta { display: flex; gap: 26px; margin-top: 36px; flex-wrap: wrap; }
+    .hero-meta .stat { display: flex; flex-direction: column; }
+    .hero-meta .stat b { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
+    .hero-meta .stat span { font-size: 0.82rem; color: var(--faint); }
+
+    /* ---- HERO MOCKUP ---- */
+    .mock {
+      position: relative; background: var(--white); border: 1px solid var(--line);
+      border-radius: var(--r-xl); padding: 22px; box-shadow: 0 30px 70px rgba(22,21,28,0.13);
+    }
+    .mock-bar { display: flex; align-items: center; gap: 7px; margin-bottom: 18px; }
+    .mock-bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--line); display: inline-block; }
+    .mock-bar i:nth-child(1){ background:#FF5F57; } .mock-bar i:nth-child(2){ background:#FEBC2E; } .mock-bar i:nth-child(3){ background:#28C840; }
+    .mock-bar .mock-url { margin-left: auto; font-size: 0.74rem; color: var(--faint); }
+    .mock-draft { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 16px; font-size: 0.9rem; color: var(--ink-2); line-height: 1.5; }
+    .mock-draft .lbl { display:block; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
+    .mock-scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+    .mscore { border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 12px; text-align: center; background: var(--white); }
+    .mscore .p { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint); }
+    .mscore .n { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; line-height: 1; margin: 8px 0 4px; }
+    .mscore.hi { border-color: var(--lav); box-shadow: 0 0 0 3px var(--lav-soft); }
+    .mscore.hi .n { color: var(--lav); }
+    .mscore .meter { height: 5px; border-radius: 3px; background: var(--lav-soft-2); overflow: hidden; }
+    .mscore .meter span { display: block; height: 100%; background: var(--lav); border-radius: 3px; }
+    .mock-rewrite { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 12px 14px; background: var(--lav-soft); border: 1px solid var(--lav-soft-2); border-radius: var(--r-md); font-size: 0.84rem; color: var(--lav-dark); font-weight: 600; }
+    .mock-float {
+      position: absolute; right: -18px; bottom: 34px; background: var(--ink); color: #fff;
+      border-radius: var(--r-md); padding: 12px 15px; box-shadow: 0 16px 40px rgba(22,21,28,0.28);
+      font-size: 0.8rem; display: flex; align-items: center; gap: 10px; max-width: 215px;
+    }
+    .mock-float .pulse { width: 9px; height: 9px; border-radius: 50%; background: #34B872; box-shadow: 0 0 0 4px rgba(52,184,114,0.25); flex-shrink: 0; }
+
+    /* ---- TRUST STRIP ---- */
+    .trust { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--white); }
+    .trust-inner { padding: 26px 0; display: flex; align-items: center; gap: 30px; flex-wrap: wrap; justify-content: center; }
+    .trust-label { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+    .trust-items { display: flex; gap: 26px; flex-wrap: wrap; align-items: center; }
+    .trust-items span { font-weight: 600; color: var(--muted); font-size: 0.96rem; display: inline-flex; align-items: center; gap: 7px; }
+
+    /* ---- SECTION SHELL ---- */
+    section.block { padding: 92px 0; }
+    .section-head { max-width: 680px; margin: 0 auto 52px; text-align: center; }
+    .kicker { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--lav); }
+    h2.section-title { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.9rem, 3.4vw, 2.7rem); letter-spacing: -0.03em; line-height: 1.1; margin: 12px 0 0; }
+    .section-head p { color: var(--muted); font-size: 1.05rem; margin-top: 14px; }
+
+    /* ---- FEATURES ---- */
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .feature {
+      background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg);
+      padding: 28px 26px; transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+    }
+    .feature:hover { transform: translateY(-4px); box-shadow: 0 18px 44px rgba(22,21,28,0.09); border-color: var(--lav-soft-2); }
+    .feature .ico {
+      width: 50px; height: 50px; border-radius: var(--r-md); display: grid; place-items: center;
+      font-size: 1.5rem; background: var(--lav-soft); margin-bottom: 18px;
+    }
+    .feature h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.18rem; letter-spacing: -0.01em; }
+    .feature p { color: var(--muted); font-size: 0.94rem; margin-top: 9px; }
+    .feature .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+    .feature .tags b { font-size: 0.72rem; font-weight: 600; color: var(--lav-dark); background: var(--lav-soft); border-radius: 100px; padding: 4px 11px; }
+    .feature.wide { grid-column: span 3; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: center; }
+    .feature.wide .ico { margin-bottom: 0; }
+    .feature.wide .wide-body { display: flex; flex-direction: column; }
+    .feature.wide .wide-visual { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+    .feature.wide .wide-visual div {
+      border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 10px; text-align: center; background: var(--surface);
+    }
+    .feature.wide .wide-visual b { font-family: var(--font-display); font-size: 1.2rem; color: var(--lav); display: block; }
+    .feature.wide .wide-visual span { font-size: 0.72rem; color: var(--faint); }
+
+    /* ---- HOW IT WORKS ---- */
+    .how { background: var(--surface); }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+    .step { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 30px 26px; position: relative; }
+    .step .num { font-family: var(--font-display); font-weight: 700; font-size: 0.95rem; color: var(--lav); border: 1.5px solid var(--lav-soft-2); width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 18px; }
+    .step h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.12rem; }
+    .step p { color: var(--muted); font-size: 0.93rem; margin-top: 8px; }
+
+    /* ---- CTA BAND ---- */
+    .cta-band { padding: 92px 0; }
+    .cta-card {
+      position: relative; overflow: hidden;
+      background: linear-gradient(135deg, var(--ink), #322C57 140%);
+      border-radius: var(--r-xl); padding: 64px 48px; text-align: center; color: #fff;
+    }
+    .cta-card::before { content:""; position:absolute; inset:0; z-index:0; background: radial-gradient(50% 80% at 80% 0%, rgba(124,92,255,0.5), transparent 70%); }
+    .cta-card > * { position: relative; z-index: 1; }
+    .cta-card h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.9rem, 3.6vw, 2.8rem); letter-spacing: -0.03em; line-height: 1.1; }
+    .cta-card p { color: rgba(255,255,255,0.74); font-size: 1.06rem; margin: 14px auto 30px; max-width: 520px; }
+    .cta-card .btn-primary { box-shadow: 0 10px 30px rgba(124,92,255,0.45); }
+
+    /* ---- FOOTER ---- */
+    footer.site { border-top: 1px solid var(--line); background: var(--white); }
+    .footer-inner { padding: 40px 0; display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+    .footer-inner .brand { font-size: 1.05rem; }
+    .footer-note { font-size: 0.84rem; color: var(--faint); }
+    .footer-links { display: flex; gap: 22px; }
+    .footer-links a { font-size: 0.88rem; color: var(--muted); transition: color 0.15s; }
+    .footer-links a:hover { color: var(--lav); }
+
+    /* ---- RESPONSIVE ---- */
+    .nav-links.mobile-hide { }
+    @media (max-width: 920px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 44px; }
+      .mock-float { right: 8px; }
+      .features { grid-template-columns: repeat(2, 1fr); }
+      .feature.wide { grid-column: span 2; grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 680px) {
+      .nav-links { display: none; }
+      .hero { padding: 64px 0 56px; }
+      section.block { padding: 64px 0; }
+      .features { grid-template-columns: 1fr; }
+      .feature.wide { grid-column: span 1; }
+      .cta-card { padding: 48px 24px; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
 </head>
 <body>
 
-  <nav class="topbar">
-    <div class="topbar-left">
-      <span class="logo-mark">◈</span>
-      <span class="logo-text">PostPulse</span>
-      <span class="logo-tag">for Stars of Science</span>
-    </div>
-    <div class="topbar-right">
-      <span class="status-dot" id="api-dot"></span>
-      <span class="status-text" id="api-status">Connecting...</span>
-      <button id="btn-settings" title="Platform credentials settings">⚙</button>
+  <!-- ============ NAV ============ -->
+  <nav class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="index.html">
+        <span class="mark">◈</span> PostPulse
+        <span class="tag">for Stars of Science</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#tools">Tools</a>
+      </div>
+      <div class="nav-cta">
+        <a class="btn btn-primary btn-sm" href="app.html">Launch app →</a>
+      </div>
     </div>
   </nav>
 
-  <main>
-
-    <!-- CONNECTED ACCOUNTS (toggled via gear icon) -->
-    <section class="accounts-section hidden" id="accounts-section">
-      <div class="accounts-header">
-        <span class="accounts-title">Connected Accounts</span>
-        <span class="accounts-sub">Connect your own accounts for personalized benchmarks &amp; one-click publishing</span>
+  <!-- ============ HERO ============ -->
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="dot"></span> Built for Stars of Science · QSTP</span>
+        <h1 class="hero-title">Every post,<br>scored before<br>it <span class="accent">ships.</span></h1>
+        <p class="hero-sub">
+          PostPulse is the AI content optimizer that scores, rewrites, and packages your social posts
+          against <strong>real Stars of Science performance data</strong> — across every platform, in seconds.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary btn-lg" href="app.html">Launch PostPulse →</a>
+          <a class="btn btn-ghost btn-lg" href="#features">See what it does</a>
+        </div>
+        <div class="hero-meta">
+          <div class="stat"><b>6</b><span>platforms covered</span></div>
+          <div class="stat"><b>5</b><span>AI tools in one place</span></div>
+          <div class="stat"><b>Real</b><span>benchmark data</span></div>
+        </div>
       </div>
-      <div class="accounts-grid" id="accounts-grid">
-        <!-- Rendered by app.js on load -->
+
+      <!-- Product mockup -->
+      <div class="hero-visual">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><span class="mock-url">postpulse · post scorer</span></div>
+          <div class="mock-draft">
+            <span class="lbl">Your draft</span>
+            Applications for Stars of Science Season 17 are now open! Young Arab innovators — turn your idea into reality. Apply now.
+          </div>
+          <div class="mock-scores">
+            <div class="mscore"><div class="p">X</div><div class="n">84</div><div class="meter"><span style="width:84%"></span></div></div>
+            <div class="mscore hi"><div class="p">LinkedIn</div><div class="n">91</div><div class="meter"><span style="width:91%"></span></div></div>
+            <div class="mscore"><div class="p">Facebook</div><div class="n">78</div><div class="meter"><span style="width:78%"></span></div></div>
+          </div>
+          <div class="mock-rewrite">✍️ AI rewrite ready — +12 points on engagement</div>
+          <div class="mock-float"><span class="pulse"></span> Best time to post: Tue 8:00 PM GST</div>
+        </div>
       </div>
-    </section>
-
-    <!-- TAB BAR -->
-    <div class="tab-bar">
-      <button class="tab-btn active" data-tab="insights">📊 Account Intelligence</button>
-      <button class="tab-btn" data-tab="scorer">⚡ Post Scorer</button>
-      <button class="tab-btn" data-tab="image">🖼️ Image Analyzer</button>
-      <button class="tab-btn" data-tab="video">🎬 Video Analyzer</button>
-      <button class="tab-btn" data-tab="campaign">🚀 Campaign Pack</button>
     </div>
+  </header>
 
-    <!-- ======== TAB: POST SCORER ======== -->
-    <div id="tab-scorer" class="tab-pane hidden">
-
-      <section class="input-section">
-        <div class="input-header">
-          <h1>Drop your draft.<br><span class="accent">We'll make it hit.</span></h1>
-          <p class="subtitle">Paste a post. Get scored against real Stars of Science performance data across every platform.</p>
-        </div>
-
-        <div class="input-area">
-          <div class="input-box">
-            <textarea id="draft-input" dir="auto" placeholder="Paste your draft post here...&#10;&#10;e.g. &quot;Applications for Stars of Science Season 17 are now open! Young Arab innovators — this is your chance to turn your idea into reality. Apply now at starsofscience.com&quot;"></textarea>
-            <div class="input-meta">
-              <span class="char-count"><span id="char-count">0</span> chars</span>
-              <div class="input-actions">
-                <button class="btn-secondary" id="btn-clear">Clear</button>
-                <button class="btn-primary" id="btn-analyze">
-                  <span class="btn-icon">⚡</span> Score My Post
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="extra-inputs">
-            <div class="extra-input-group">
-              <label class="extra-label" for="topic-input">Topic</label>
-              <input type="text" id="topic-input" value="science innovation" placeholder="e.g. science innovation">
-            </div>
-            <div class="extra-input-group">
-              <label class="extra-label" for="goal-select">Goal</label>
-              <select id="goal-select">
-                <option value="reach">📈 Maximize Reach</option>
-                <option value="engagement">💬 Maximize Engagement</option>
-                <option value="conversions">🎯 Maximize Conversions</option>
-              </select>
-            </div>
-            <div class="extra-input-group">
-              <label class="extra-label" for="persona-select">Target audience</label>
-              <select id="persona-select">
-                <option value="general">🌍 General Audience</option>
-                <option value="applicants">🎓 Potential Applicants</option>
-                <option value="viewers">📺 Viewers &amp; Fans</option>
-                <option value="sponsors">🤝 Sponsors &amp; Partners</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="platform-select">
-            <span class="platform-select-label">Target platforms</span>
-            <div class="platform-chips">
-              <button class="chip active" data-platform="twitter">🐦 X / Twitter</button>
-              <button class="chip active" data-platform="linkedin">💼 LinkedIn</button>
-              <button class="chip active" data-platform="facebook">📘 Facebook</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- PIPELINE LOADING -->
-      <section class="loading-section hidden" id="loading-section">
-        <div class="pipeline-steps">
-          <div class="pipeline-step" id="step-benchmark">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-            <div class="step-info">
-              <span class="step-label">Fetching SoS benchmarks</span>
-              <span class="step-detail">Pulling real post performance via RapidAPI</span>
-            </div>
-          </div>
-          <div class="pipeline-step waiting" id="step-rules">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-            <div class="step-info">
-              <span class="step-label">Running rule checks</span>
-              <span class="step-detail">Character limits, hashtag counts, format validation</span>
-            </div>
-          </div>
-          <div class="pipeline-step waiting" id="step-ai">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-            <div class="step-info">
-              <span class="step-label">AI scoring & rewriting</span>
-              <span class="step-detail">GPT-4o-mini analyzes against benchmarks + rules</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- RESULTS -->
-      <section class="results-section hidden" id="results-section">
-
-        <div class="recommendation-section hidden" id="recommendation-section">
-          <div class="recommendation-card" id="recommendation-card"></div>
-        </div>
-
-        <div class="benchmark-section hidden" id="benchmark-section">
-          <div class="results-header">
-            <h2>SoS Benchmark</h2>
-            <p class="results-sub">Real Stars of Science performance — your draft is scored against this</p>
-          </div>
-          <div class="benchmark-grid" id="benchmark-grid"></div>
-        </div>
-
-        <div class="rules-section" id="rules-section">
-          <div class="results-header">
-            <h2>Pre-Flight Check</h2>
-            <p class="results-sub">Hard rules caught before AI even looks at it</p>
-          </div>
-          <div class="rules-list" id="rules-list"></div>
-        </div>
-
-        <div class="results-header">
-          <h2>Score Breakdown</h2>
-          <p class="results-sub">Click any card for the full breakdown, rewrite, and hashtags</p>
-        </div>
-        <div class="score-grid" id="score-grid"></div>
-
-        <div class="detail-panel hidden" id="detail-panel">
-          <div class="detail-header">
-            <h3 id="detail-platform-name">Instagram</h3>
-            <div class="detail-score-big" id="detail-score-big">82</div>
-          </div>
-          <div class="detail-body">
-            <div class="detail-left">
-              <div id="detail-breakdown"></div>
-              <div id="detail-hashtags"></div>
-            </div>
-            <div class="detail-right">
-              <div id="detail-suggestions"></div>
-            </div>
-          </div>
-          <div id="detail-publish-row"></div>
-          <div class="detail-rewrite hidden" id="detail-rewrite">
-            <div class="rewrite-header">
-              <span class="rewrite-title">✍️ AI-Rewritten Version</span>
-              <div class="rewrite-actions">
-                <button class="copy-btn hidden" id="rewrite-lang-toggle">عربي</button>
-                <button class="copy-btn" id="btn-rescore">⚡ Score this version</button>
-                <button class="copy-btn" id="copy-rewrite-btn">Copy</button>
-              </div>
-            </div>
-            <div id="rescore-result" class="rescore-result hidden"></div>
-            <div class="rewrite-text" id="rewrite-text"></div>
-          </div>
-
-          <div class="detail-algorithm hidden" id="detail-algorithm">
-            <div class="algo-header"><span class="algo-title">🧠 Algorithm Decoder</span></div>
-            <div class="algo-verdict" id="algo-verdict"></div>
-            <div class="algo-signals" id="algo-signals"></div>
-          </div>
-
-          <div class="detail-audience hidden" id="detail-audience">
-            <div class="audience-header"><span class="audience-title">🌍 Audience &amp; Geo Targeting</span></div>
-            <div class="audience-tabs" id="audience-tabs"></div>
-            <div class="audience-body" id="audience-body"></div>
-          </div>
-        </div>
-
-        <div class="schedule-section">
-          <div class="results-header">
-            <h2>Optimal Posting Times</h2>
-            <p class="results-sub">Best weekly windows per platform (Gulf Standard Time)</p>
-          </div>
-          <div class="schedule-grid" id="schedule-grid"></div>
-        </div>
-
-      </section>
-    </div><!-- /tab-scorer -->
-
-    <!-- ======== TAB: IMAGE ANALYZER ======== -->
-    <div id="tab-image" class="tab-pane hidden">
-      <section class="video-section">
-        <div class="results-header">
-          <h2>Image Analyzer</h2>
-          <p class="results-sub">Upload a poster or graphic — AI scores the visual before it goes live</p>
-        </div>
-        <div class="video-upload-area" id="image-upload-area">
-          <input type="file" id="image-file-input" accept="image/*" class="hidden">
-          <div class="upload-prompt" id="upload-prompt-image">
-            <span class="upload-icon">🖼️</span>
-            <span>Click to upload or drag &amp; drop</span>
-            <span class="upload-sub">PNG, JPG, WEBP — a poster, thumbnail, or graphic</span>
-          </div>
-          <div class="upload-selected hidden" id="upload-selected-image">
-            <span class="upload-icon">✅</span>
-            <span id="image-filename"></span>
-            <button class="btn-secondary" id="btn-clear-image">Change</button>
-          </div>
-        </div>
-        <div class="extra-inputs" style="margin-top:14px;">
-          <div class="extra-input-group">
-            <label class="extra-label" for="image-topic-input">Topic</label>
-            <input type="text" id="image-topic-input" value="science innovation" placeholder="e.g. science innovation">
-          </div>
-        </div>
-        <button class="btn-primary" id="btn-analyze-image" style="margin-top:16px;" disabled>
-          <span class="btn-icon">🔍</span> Analyze Image
-        </button>
-
-        <div class="pipeline-steps hidden" id="image-loading">
-          <div class="pipeline-step" id="step-image-read">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-            <div class="step-info">
-              <span class="step-label">Reading image</span>
-              <span class="step-detail">Resizing and encoding for the vision model</span>
-            </div>
-          </div>
-          <div class="pipeline-step waiting" id="step-image-ai">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-            <div class="step-info">
-              <span class="step-label">AI vision analysis</span>
-              <span class="step-detail">GPT-4o-mini scoring the visual and platform fit</span>
-            </div>
-          </div>
-        </div>
-
-        <div id="image-results" class="hidden">
-          <div id="image-preview"></div>
-          <div id="image-summary-card"></div>
-          <div class="detail-panel" style="margin-top:24px;">
-            <div class="detail-header">
-              <h3>Visual Score</h3>
-              <div class="detail-score-big" id="image-score">0</div>
-            </div>
-            <div class="detail-body">
-              <div class="detail-left"><div id="image-breakdown"></div></div>
-              <div class="detail-right"><div id="image-analysis"></div></div>
-            </div>
-          </div>
-          <div id="image-platform-fit"></div>
-        </div>
-      </section>
-    </div><!-- /tab-image -->
-
-    <!-- ======== TAB: ACCOUNT INTELLIGENCE ======== -->
-    <div id="tab-insights" class="tab-pane active">
-      <section class="insights-section">
-        <div class="results-header">
-          <h2>Account Intelligence</h2>
-          <p class="results-sub">Real engagement patterns decoded from Stars of Science accounts — or benchmark a competitor</p>
-        </div>
-        <div class="competitor-bench-header">
-          <span class="competitor-bench-title">🏁 Competitor Benchmarking</span>
-          <span class="competitor-bench-sub">Compare any account against Stars of Science — leave fields blank to analyze the SoS defaults</span>
-        </div>
-        <div class="insights-inputs">
-          <div class="extra-input-group">
-            <label class="extra-label" for="insights-instagram">📸 Instagram handle</label>
-            <input type="text" id="insights-instagram" placeholder="competitor handle, e.g. nasa">
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="insights-tiktok">🎵 TikTok handle</label>
-            <input type="text" id="insights-tiktok" placeholder="competitor handle, e.g. nasa">
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="insights-twitter">🐦 X / Twitter handle</label>
-            <input type="text" id="insights-twitter" placeholder="competitor handle, e.g. NASA">
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="insights-youtube">▶️ YouTube URL / handle</label>
-            <input type="text" id="insights-youtube" placeholder="youtube.com/@nasa or UC… ID">
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="insights-facebook">📘 Facebook page URL</label>
-            <input type="text" id="insights-facebook" placeholder="competitor page URL">
-          </div>
-        </div>
-        <button class="btn-primary" id="btn-load-insights">
-          <span class="btn-icon">📊</span> Load Account Intelligence
-        </button>
-        <div id="insights-mock-banner" class="mock-banner hidden">
-          ⚠️ <strong>Demo data</strong> — the backend is unreachable, so these numbers are
-          <strong>fabricated</strong>, not real analytics. <span id="insights-mock-reason"></span>
-        </div>
-        <div class="pipeline-steps hidden" id="insights-loading">
-          <div class="pipeline-step" id="step-insights-fetch">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-            <div class="step-info">
-              <span class="step-label">Fetching account data</span>
-              <span class="step-detail">Pulling real post data via RapidAPI for all platforms</span>
-            </div>
-          </div>
-          <div class="pipeline-step waiting" id="step-insights-ai">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-            <div class="step-info">
-              <span class="step-label">AI pattern analysis</span>
-              <span class="step-detail">GPT-4o-mini decoding engagement signals</span>
-            </div>
-          </div>
-        </div>
-        <div id="insights-overall" class="insights-overall hidden"></div>
-        <div id="insights-growth" class="insights-growth hidden"></div>
-        <div id="insights-grid" class="insights-grid"></div>
-      </section>
-    </div><!-- /tab-insights -->
-
-    <!-- ======== TAB: VIDEO ANALYZER ======== -->
-    <div id="tab-video" class="tab-pane hidden">
-      <section class="video-section">
-        <div class="results-header">
-          <h2>AI Edit Suggestions</h2>
-          <p class="results-sub">Upload a video draft and get metadata-aware, transcript-aware edit suggestions for a target platform.</p>
-        </div>
-        <div class="video-upload-area" id="video-upload-area">
-          <input type="file" id="video-file-input" accept="video/*" class="hidden">
-          <div class="upload-prompt" id="upload-prompt">
-            <span class="upload-icon">Video</span>
-            <span>Click to upload or drag and drop</span>
-            <span class="upload-sub">MP4, MOV, AVI - metadata extraction runs immediately, transcription is optional.</span>
-          </div>
-          <div class="upload-selected hidden" id="upload-selected">
-            <span class="upload-icon">Ready</span>
-            <span id="upload-filename"></span>
-            <button class="btn-secondary" id="btn-clear-video">Change</button>
-          </div>
-        </div>
-        <div class="extra-inputs" style="margin-top:14px;">
-          <div class="extra-input-group">
-            <label class="extra-label" for="video-platform-select">Target platform</label>
-            <select id="video-platform-select">
-              <option value="instagram">Instagram</option>
-              <option value="tiktok">TikTok</option>
-              <option value="twitter">X / Twitter</option>
-              <option value="youtube">YouTube</option>
-              <option value="linkedin">LinkedIn</option>
-              <option value="facebook">Facebook</option>
-            </select>
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="video-goal-input">Goal</label>
-            <input type="text" id="video-goal-input" placeholder="Optional: increase retention, drive comments, improve hook">
-          </div>
-        </div>
-        <button class="btn-primary" id="btn-analyze-video" style="margin-top:16px;" disabled>
-          <span class="btn-icon">AI</span> Generate AI Edit Suggestions
-        </button>
-
-        <div class="pipeline-steps hidden" id="video-loading">
-          <div class="pipeline-step" id="step-video-frames">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">OK</div></div>
-            <div class="step-info">
-              <span class="step-label">Reading metadata and transcript</span>
-              <span class="step-detail">Inspecting duration, format, audio, and available speech segments</span>
-            </div>
-          </div>
-          <div class="pipeline-step waiting" id="step-video-ai">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">OK</div></div>
-            <div class="step-info">
-              <span class="step-label">Generating edit suggestions</span>
-              <span class="step-detail">OpenAI creates edit notes, captions, hashtags, and a CTA</span>
-            </div>
-          </div>
-        </div>
-
-        <div id="video-results" class="hidden">
-          <div id="video-summary-card"></div>
-          <div id="video-edit-suggestions"></div>
-        </div>
-      </section>
+  <!-- ============ TRUST STRIP ============ -->
+  <div class="trust">
+    <div class="wrap trust-inner">
+      <span class="trust-label">Optimizes content across</span>
+      <div class="trust-items">
+        <span>🐦 X / Twitter</span>
+        <span>💼 LinkedIn</span>
+        <span>📘 Facebook</span>
+        <span>📸 Instagram</span>
+        <span>🎵 TikTok</span>
+        <span>▶️ YouTube</span>
+      </div>
     </div>
+  </div>
 
-    <!-- ======== TAB: CAMPAIGN PACK ======== -->
-    <div id="tab-campaign" class="tab-pane hidden">
-      <section class="campaign-section">
-        <div class="results-header">
-          <h2>Campaign Pack</h2>
-          <p class="results-sub">From one idea to six platform-native posts — ready to publish in seconds</p>
+  <!-- ============ FEATURES ============ -->
+  <section class="block" id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">One toolkit</span>
+        <h2 class="section-title">Everything you need to make content perform</h2>
+        <p>Five AI tools that turn raw ideas into platform-native posts — backed by real engagement data, not guesswork.</p>
+      </div>
+
+      <div class="features" id="tools">
+        <article class="feature">
+          <div class="ico">⚡</div>
+          <h3>Post Scorer</h3>
+          <p>Paste a draft and get it scored per platform against real Stars of Science benchmarks — with a pre-flight rule check and an AI rewrite that lifts the score.</p>
+          <div class="tags"><b>Per-platform scores</b><b>AI rewrite</b><b>Rule checks</b></div>
+        </article>
+
+        <article class="feature">
+          <div class="ico">📊</div>
+          <h3>Account Intelligence</h3>
+          <p>Decode the engagement patterns behind real accounts — or benchmark any competitor head-to-head to see exactly what's driving growth vs. noise.</p>
+          <div class="tags"><b>Pattern analysis</b><b>Competitor benchmark</b></div>
+        </article>
+
+        <article class="feature">
+          <div class="ico">🚀</div>
+          <h3>Campaign Pack</h3>
+          <p>Go from one idea to six platform-native posts — complete with captions, hashtags, timing, and editable poster creatives, ready to publish.</p>
+          <div class="tags"><b>6 posts in seconds</b><b>Editable creatives</b></div>
+        </article>
+
+        <article class="feature">
+          <div class="ico">🖼️</div>
+          <h3>Image Analyzer</h3>
+          <p>Upload a poster, thumbnail, or graphic and let AI vision score the visual and its fit for each platform — before it ever goes live.</p>
+          <div class="tags"><b>Vision scoring</b><b>Platform fit</b></div>
+        </article>
+
+        <article class="feature">
+          <div class="ico">🎬</div>
+          <h3>Video Analyzer</h3>
+          <p>Upload a video draft for metadata- and transcript-aware edit suggestions — hooks, cuts, captions, and a CTA tuned to your target platform.</p>
+          <div class="tags"><b>Edit suggestions</b><b>Music matching</b></div>
+        </article>
+
+        <article class="feature">
+          <div class="ico">🧠</div>
+          <h3>Algorithm Decoder</h3>
+          <p>See why a post will or won't travel: a plain-language verdict on the signals each platform's algorithm rewards, plus the optimal posting windows.</p>
+          <div class="tags"><b>Signal breakdown</b><b>Best posting times</b></div>
+        </article>
+
+        <article class="feature wide">
+          <div class="wide-body">
+            <div class="ico">🎯</div>
+            <h3 style="margin-top:18px;">Scored against what actually works</h3>
+            <p>PostPulse doesn't guess. Every score is anchored to live performance data and hard platform rules, then sharpened by AI — so you ship posts you already know will land.</p>
+            <div class="tags"><b>Real benchmarks</b><b>Audience & geo targeting</b><b>Bilingual rewrites</b></div>
+          </div>
+          <div class="wide-visual">
+            <div><b>+12</b><span>avg score lift</span></div>
+            <div><b>6</b><span>platforms at once</span></div>
+            <div><b>&lt;30s</b><span>draft to scored</span></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS ============ -->
+  <section class="block how" id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">How it works</span>
+        <h2 class="section-title">Draft in. Confident post out.</h2>
+        <p>No dashboards to learn. Drop your content and PostPulse handles the rest.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="num">1</div>
+          <h3>Drop your draft</h3>
+          <p>Paste a post, upload an image, or describe a campaign. Pick your platforms, goal, and audience.</p>
         </div>
-
-        <div class="input-box">
-          <textarea id="campaign-goal-input" dir="auto" placeholder="Describe your campaign goal...&#10;&#10;e.g. &quot;Season 17 applications open June 20 — drive young Arab innovators to apply&quot;"></textarea>
+        <div class="step">
+          <div class="num">2</div>
+          <h3>Get scored & rewritten</h3>
+          <p>AI scores it against real benchmarks and platform rules, then rewrites it to hit harder — per platform.</p>
         </div>
-        <div class="extra-inputs" style="margin-top:14px;">
-          <div class="extra-input-group">
-            <label class="extra-label" for="campaign-persona">Target audience</label>
-            <select id="campaign-persona">
-              <option value="general">🌍 General Audience</option>
-              <option value="applicants">🎓 Potential Applicants</option>
-              <option value="viewers">📺 Viewers &amp; Fans</option>
-              <option value="sponsors">🤝 Sponsors &amp; Partners</option>
-            </select>
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="campaign-goal-select">Goal</label>
-            <select id="campaign-goal-select">
-              <option value="reach">📈 Maximize Reach</option>
-              <option value="engagement">💬 Maximize Engagement</option>
-              <option value="conversions">🎯 Maximize Conversions</option>
-            </select>
-          </div>
+        <div class="step">
+          <div class="num">3</div>
+          <h3>Publish with confidence</h3>
+          <p>Copy the optimized version, grab the creatives, and post at the best time — or publish straight from PostPulse.</p>
         </div>
-        <button class="btn-primary" id="btn-generate-campaign" style="margin-top:16px;">
-          <span class="btn-icon">🚀</span> Generate Campaign Pack
-        </button>
+      </div>
+    </div>
+  </section>
 
-        <div class="pipeline-steps hidden" id="campaign-loading">
-          <div class="pipeline-step" id="step-campaign-plan">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-            <div class="step-info">
-              <span class="step-label">Planning the campaign</span>
-              <span class="step-detail">Aligning angle, persona, and posting windows</span>
-            </div>
-          </div>
-          <div class="pipeline-step waiting" id="step-campaign-ai">
-            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
-            <div class="step-info">
-              <span class="step-label">Writing 6 platform-native posts</span>
-              <span class="step-detail">GPT-4o-mini drafting bilingual posts per platform</span>
-            </div>
-          </div>
-        </div>
+  <!-- ============ CTA BAND ============ -->
+  <section class="cta-band">
+    <div class="wrap">
+      <div class="cta-card">
+        <h2>Ready to make every post hit?</h2>
+        <p>Launch PostPulse and score your first draft in under a minute — no setup required.</p>
+        <a class="btn btn-primary btn-lg" href="app.html">Launch PostPulse →</a>
+      </div>
+    </div>
+  </section>
 
-        <div id="campaign-results" class="hidden">
-          <div id="campaign-overall" class="insights-overall hidden"></div>
-
-          <!-- Editable poster creatives (Fabric.js) -->
-          <div id="creatives-section" class="creatives-section hidden">
-            <div class="results-header">
-              <h2>Editable Creatives</h2>
-              <p class="results-sub">AI-generated posters — click Edit to change text, fonts, colors &amp; layout, then export PNG</p>
-            </div>
-            <div class="creatives-grid">
-              <div class="creative-card" id="creative-social">
-                <div class="creative-preview-wrap">
-                  <canvas class="creative-preview" data-group="social"></canvas>
-                  <div class="creative-loading" data-group="social"><div class="step-spinner"></div><span>Generating image…</span></div>
-                </div>
-                <div class="creative-card-foot">
-                  <span class="creative-label">📱 Social <span class="creative-sub">IG · TikTok · X · YouTube</span></span>
-                  <div class="creative-actions">
-                    <button class="copy-btn creative-ai-btn" data-group="social">🤖 AI</button>
-                    <button class="copy-btn creative-pexels-btn" data-group="social">🖼️ Pexels</button>
-                    <button class="copy-btn creative-edit-btn" data-group="social">✏️ Edit</button>
-                    <button class="copy-btn creative-png-btn" data-group="social">⬇ PNG</button>
-                  </div>
-                </div>
-              </div>
-              <div class="creative-card" id="creative-linkedin">
-                <div class="creative-preview-wrap">
-                  <canvas class="creative-preview" data-group="linkedin"></canvas>
-                  <div class="creative-loading" data-group="linkedin"><div class="step-spinner"></div><span>Generating image…</span></div>
-                </div>
-                <div class="creative-card-foot">
-                  <span class="creative-label">💼 LinkedIn <span class="creative-sub">Professional</span></span>
-                  <div class="creative-actions">
-                    <button class="copy-btn creative-ai-btn" data-group="linkedin">🤖 AI</button>
-                    <button class="copy-btn creative-pexels-btn" data-group="linkedin">🖼️ Pexels</button>
-                    <button class="copy-btn creative-edit-btn" data-group="linkedin">✏️ Edit</button>
-                    <button class="copy-btn creative-png-btn" data-group="linkedin">⬇ PNG</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="results-header" id="campaign-posts-header" style="margin-top:32px;">
-            <h2>Platform Posts</h2>
-            <p class="results-sub">Ready-to-publish captions, hashtags &amp; timing per platform</p>
-          </div>
-          <div id="campaign-grid" class="campaign-grid"></div>
-        </div>
-      </section>
-    </div><!-- /tab-campaign -->
-
-  </main>
-
-  <footer class="site-footer">
-    <p>Built at Build For QSTP Hackathon #3 — Stars of Science</p>
+  <!-- ============ FOOTER ============ -->
+  <footer class="site">
+    <div class="wrap footer-inner">
+      <div>
+        <a class="brand" href="index.html"><span class="mark">◈</span> PostPulse</a>
+        <p class="footer-note" style="margin-top:8px;">Built at Build For QSTP Hackathon #3 — Stars of Science</p>
+      </div>
+      <div class="footer-links">
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="app.html">Launch app</a>
+      </div>
+    </div>
   </footer>
 
-  <div id="toast" class="toast hidden"></div>
-
-  <!-- ======== INSIGHT / INFO MODAL ======== -->
-  <div id="insight-modal" class="insight-modal hidden" role="dialog" aria-modal="true" aria-labelledby="insight-modal-title">
-    <div class="insight-modal-backdrop" id="insight-modal-backdrop"></div>
-    <div class="insight-modal-card">
-      <button class="insight-modal-close" id="insight-modal-close" aria-label="Close">✕</button>
-      <div class="insight-modal-header">
-        <span class="insight-modal-icon" id="insight-modal-icon"></span>
-        <span class="insight-modal-title" id="insight-modal-title"></span>
-      </div>
-      <div class="insight-modal-body" id="insight-modal-body"></div>
-      <div class="insight-modal-nav hidden" id="insight-modal-nav">
-        <button class="insight-modal-btn" id="insight-modal-prev">‹ Prev</button>
-        <span class="insight-modal-indicator" id="insight-modal-indicator">1 / 4</span>
-        <button class="insight-modal-btn" id="insight-modal-next">Next ›</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======== DESIGN EDITOR (Fabric.js) ======== -->
-  <div id="design-editor" class="design-editor hidden" role="dialog" aria-modal="true">
-    <div class="design-editor-backdrop" id="design-editor-backdrop"></div>
-    <div class="design-editor-card">
-      <div class="design-editor-head">
-        <span class="design-editor-title" id="design-editor-title">Edit Creative</span>
-        <button class="design-editor-close" id="design-editor-close" aria-label="Close">✕</button>
-      </div>
-      <div class="design-editor-body">
-        <div class="design-canvas-wrap" id="design-canvas-wrap">
-          <canvas id="design-canvas"></canvas>
-        </div>
-        <div class="design-controls">
-          <div class="dc-group">
-            <div class="dc-label">Layers</div>
-            <div class="dc-layers" id="dc-layers"></div>
-          </div>
-          <div class="dc-group" id="dc-text-group">
-            <div class="dc-label">Text</div>
-            <textarea id="dc-text" class="dc-text-input" rows="2" placeholder="Select a layer…" disabled></textarea>
-            <button class="copy-btn dc-regen-btn" id="dc-regen" disabled>✨ Regenerate options</button>
-            <div class="dc-regen-options hidden" id="dc-regen-options"></div>
-          </div>
-          <div class="dc-row">
-            <div class="dc-group dc-grow">
-              <div class="dc-label">Font</div>
-              <select id="dc-font" class="dc-select" disabled>
-                <option value="Montserrat">Montserrat</option>
-                <option value="Poppins">Poppins</option>
-                <option value="Oswald">Oswald</option>
-                <option value="Playfair Display">Playfair Display</option>
-                <option value="Space Grotesk">Space Grotesk</option>
-                <option value="Inter">Inter</option>
-              </select>
-            </div>
-            <div class="dc-group">
-              <div class="dc-label">Color</div>
-              <input type="color" id="dc-color" class="dc-color" value="#FFFFFF" disabled>
-            </div>
-          </div>
-          <div class="dc-group">
-            <div class="dc-label">Size <span id="dc-size-val">64</span>px</div>
-            <input type="range" id="dc-size" class="dc-range" min="12" max="180" value="64" disabled>
-          </div>
-          <div class="dc-group">
-            <div class="dc-label">Background</div>
-            <div class="dc-bg-actions">
-              <button class="copy-btn dc-bg-regen" id="dc-bg-regen">🤖 Generate AI</button>
-              <button class="copy-btn dc-bg-pexels" id="dc-bg-pexels">🖼️ Pexels</button>
-              <label class="copy-btn dc-bg-upload">📁 Replace
-                <input type="file" id="dc-bg-file" accept="image/*" class="hidden">
-              </label>
-            </div>
-          </div>
-          <button class="btn-primary dc-export" id="dc-export"><span class="btn-icon">⬇</span> Download PNG</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======== PEXELS PHOTO PICKER ======== -->
-  <div id="pexels-modal" class="insight-modal hidden" role="dialog" aria-modal="true" aria-label="Pick a Pexels photo">
-    <div class="insight-modal-backdrop" id="pexels-backdrop"></div>
-    <div class="insight-modal-card pexels-card">
-      <button class="insight-modal-close" id="pexels-close" aria-label="Close">✕</button>
-      <div class="insight-modal-header">
-        <span class="insight-modal-icon">🖼️</span>
-        <span class="insight-modal-title">Pick a Pexels photo</span>
-      </div>
-      <div class="pexels-search-row">
-        <input type="text" id="pexels-query" class="settings-input" placeholder="Search photos…" autocomplete="off">
-        <button class="btn-primary pexels-search-btn" id="pexels-search-btn">Search</button>
-      </div>
-      <div class="insight-modal-body">
-        <div class="pexels-loading hidden" id="pexels-loading"><div class="step-spinner"></div><span>Searching Pexels…</span></div>
-        <div class="pexels-grid" id="pexels-grid"></div>
-        <div class="pexels-empty hidden" id="pexels-empty">No photos found — try a different search.</div>
-      </div>
-      <div class="pexels-credit">Photos provided by <a href="https://www.pexels.com" target="_blank" rel="noopener">Pexels</a></div>
-    </div>
-  </div>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
-  <script src="app.js"></script>
 </body>
 </html>

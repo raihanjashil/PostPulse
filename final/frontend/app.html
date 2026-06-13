@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PostPulse — AI Content Optimizer for Stars of Science</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=Montserrat:wght@500;700;800&family=Poppins:wght@500;700&family=Oswald:wght@500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <nav class="topbar">
+    <a class="topbar-left" href="index.html" title="Back to home">
+      <span class="logo-mark">◈</span>
+      <span class="logo-text">PostPulse</span>
+      <span class="logo-tag">for Stars of Science</span>
+    </a>
+    <div class="topbar-right">
+      <span class="status-dot" id="api-dot"></span>
+      <span class="status-text" id="api-status">Connecting...</span>
+      <button id="btn-settings" title="Platform credentials settings">⚙</button>
+    </div>
+  </nav>
+
+  <main>
+
+    <!-- CONNECTED ACCOUNTS (toggled via gear icon) -->
+    <section class="accounts-section hidden" id="accounts-section">
+      <div class="accounts-header">
+        <span class="accounts-title">Connected Accounts</span>
+        <span class="accounts-sub">Connect your own accounts for personalized benchmarks &amp; one-click publishing</span>
+      </div>
+      <div class="accounts-grid" id="accounts-grid">
+        <!-- Rendered by app.js on load -->
+      </div>
+    </section>
+
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="insights">📊 Account Intelligence</button>
+      <button class="tab-btn" data-tab="scorer">⚡ Post Scorer</button>
+      <button class="tab-btn" data-tab="image">🖼️ Image Analyzer</button>
+      <button class="tab-btn" data-tab="video">🎬 Video Analyzer</button>
+      <button class="tab-btn" data-tab="campaign">🚀 Campaign Pack</button>
+    </div>
+
+    <!-- ======== TAB: POST SCORER ======== -->
+    <div id="tab-scorer" class="tab-pane hidden">
+
+      <section class="input-section">
+        <div class="input-header">
+          <h1>Drop your draft.<br><span class="accent">We'll make it hit.</span></h1>
+          <p class="subtitle">Paste a post. Get scored against real Stars of Science performance data across every platform.</p>
+        </div>
+
+        <div class="input-area">
+          <div class="input-box">
+            <textarea id="draft-input" dir="auto" placeholder="Paste your draft post here...&#10;&#10;e.g. &quot;Applications for Stars of Science Season 17 are now open! Young Arab innovators — this is your chance to turn your idea into reality. Apply now at starsofscience.com&quot;"></textarea>
+            <div class="input-meta">
+              <span class="char-count"><span id="char-count">0</span> chars</span>
+              <div class="input-actions">
+                <button class="btn-secondary" id="btn-clear">Clear</button>
+                <button class="btn-primary" id="btn-analyze">
+                  <span class="btn-icon">⚡</span> Score My Post
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="extra-inputs">
+            <div class="extra-input-group">
+              <label class="extra-label" for="topic-input">Topic</label>
+              <input type="text" id="topic-input" value="science innovation" placeholder="e.g. science innovation">
+            </div>
+            <div class="extra-input-group">
+              <label class="extra-label" for="goal-select">Goal</label>
+              <select id="goal-select">
+                <option value="reach">📈 Maximize Reach</option>
+                <option value="engagement">💬 Maximize Engagement</option>
+                <option value="conversions">🎯 Maximize Conversions</option>
+              </select>
+            </div>
+            <div class="extra-input-group">
+              <label class="extra-label" for="persona-select">Target audience</label>
+              <select id="persona-select">
+                <option value="general">🌍 General Audience</option>
+                <option value="applicants">🎓 Potential Applicants</option>
+                <option value="viewers">📺 Viewers &amp; Fans</option>
+                <option value="sponsors">🤝 Sponsors &amp; Partners</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="platform-select">
+            <span class="platform-select-label">Target platforms</span>
+            <div class="platform-chips">
+              <button class="chip active" data-platform="twitter">🐦 X / Twitter</button>
+              <button class="chip active" data-platform="linkedin">💼 LinkedIn</button>
+              <button class="chip active" data-platform="facebook">📘 Facebook</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PIPELINE LOADING -->
+      <section class="loading-section hidden" id="loading-section">
+        <div class="pipeline-steps">
+          <div class="pipeline-step" id="step-benchmark">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Fetching SoS benchmarks</span>
+              <span class="step-detail">Pulling real post performance via RapidAPI</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-rules">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Running rule checks</span>
+              <span class="step-detail">Character limits, hashtag counts, format validation</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-ai">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">AI scoring & rewriting</span>
+              <span class="step-detail">GPT-4o-mini analyzes against benchmarks + rules</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RESULTS -->
+      <section class="results-section hidden" id="results-section">
+
+        <div class="recommendation-section hidden" id="recommendation-section">
+          <div class="recommendation-card" id="recommendation-card"></div>
+        </div>
+
+        <div class="benchmark-section hidden" id="benchmark-section">
+          <div class="results-header">
+            <h2>SoS Benchmark</h2>
+            <p class="results-sub">Real Stars of Science performance — your draft is scored against this</p>
+          </div>
+          <div class="benchmark-grid" id="benchmark-grid"></div>
+        </div>
+
+        <div class="rules-section" id="rules-section">
+          <div class="results-header">
+            <h2>Pre-Flight Check</h2>
+            <p class="results-sub">Hard rules caught before AI even looks at it</p>
+          </div>
+          <div class="rules-list" id="rules-list"></div>
+        </div>
+
+        <div class="results-header">
+          <h2>Score Breakdown</h2>
+          <p class="results-sub">Click any card for the full breakdown, rewrite, and hashtags</p>
+        </div>
+        <div class="score-grid" id="score-grid"></div>
+
+        <div class="detail-panel hidden" id="detail-panel">
+          <div class="detail-header">
+            <h3 id="detail-platform-name">Instagram</h3>
+            <div class="detail-score-big" id="detail-score-big">82</div>
+          </div>
+          <div class="detail-body">
+            <div class="detail-left">
+              <div id="detail-breakdown"></div>
+              <div id="detail-hashtags"></div>
+            </div>
+            <div class="detail-right">
+              <div id="detail-suggestions"></div>
+            </div>
+          </div>
+          <div id="detail-publish-row"></div>
+          <div class="detail-rewrite hidden" id="detail-rewrite">
+            <div class="rewrite-header">
+              <span class="rewrite-title">✍️ AI-Rewritten Version</span>
+              <div class="rewrite-actions">
+                <button class="copy-btn hidden" id="rewrite-lang-toggle">عربي</button>
+                <button class="copy-btn" id="btn-rescore">⚡ Score this version</button>
+                <button class="copy-btn" id="copy-rewrite-btn">Copy</button>
+              </div>
+            </div>
+            <div id="rescore-result" class="rescore-result hidden"></div>
+            <div class="rewrite-text" id="rewrite-text"></div>
+          </div>
+
+          <div class="detail-algorithm hidden" id="detail-algorithm">
+            <div class="algo-header"><span class="algo-title">🧠 Algorithm Decoder</span></div>
+            <div class="algo-verdict" id="algo-verdict"></div>
+            <div class="algo-signals" id="algo-signals"></div>
+          </div>
+
+          <div class="detail-audience hidden" id="detail-audience">
+            <div class="audience-header"><span class="audience-title">🌍 Audience &amp; Geo Targeting</span></div>
+            <div class="audience-tabs" id="audience-tabs"></div>
+            <div class="audience-body" id="audience-body"></div>
+          </div>
+        </div>
+
+        <div class="schedule-section">
+          <div class="results-header">
+            <h2>Optimal Posting Times</h2>
+            <p class="results-sub">Best weekly windows per platform (Gulf Standard Time)</p>
+          </div>
+          <div class="schedule-grid" id="schedule-grid"></div>
+        </div>
+
+      </section>
+    </div><!-- /tab-scorer -->
+
+    <!-- ======== TAB: IMAGE ANALYZER ======== -->
+    <div id="tab-image" class="tab-pane hidden">
+      <section class="video-section">
+        <div class="results-header">
+          <h2>Image Analyzer</h2>
+          <p class="results-sub">Upload a poster or graphic — AI scores the visual before it goes live</p>
+        </div>
+        <div class="video-upload-area" id="image-upload-area">
+          <input type="file" id="image-file-input" accept="image/*" class="hidden">
+          <div class="upload-prompt" id="upload-prompt-image">
+            <span class="upload-icon">🖼️</span>
+            <span>Click to upload or drag &amp; drop</span>
+            <span class="upload-sub">PNG, JPG, WEBP — a poster, thumbnail, or graphic</span>
+          </div>
+          <div class="upload-selected hidden" id="upload-selected-image">
+            <span class="upload-icon">✅</span>
+            <span id="image-filename"></span>
+            <button class="btn-secondary" id="btn-clear-image">Change</button>
+          </div>
+        </div>
+        <div class="extra-inputs" style="margin-top:14px;">
+          <div class="extra-input-group">
+            <label class="extra-label" for="image-topic-input">Topic</label>
+            <input type="text" id="image-topic-input" value="science innovation" placeholder="e.g. science innovation">
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-analyze-image" style="margin-top:16px;" disabled>
+          <span class="btn-icon">🔍</span> Analyze Image
+        </button>
+
+        <div class="pipeline-steps hidden" id="image-loading">
+          <div class="pipeline-step" id="step-image-read">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Reading image</span>
+              <span class="step-detail">Resizing and encoding for the vision model</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-image-ai">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">AI vision analysis</span>
+              <span class="step-detail">GPT-4o-mini scoring the visual and platform fit</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="image-results" class="hidden">
+          <div id="image-preview"></div>
+          <div id="image-summary-card"></div>
+          <div class="detail-panel" style="margin-top:24px;">
+            <div class="detail-header">
+              <h3>Visual Score</h3>
+              <div class="detail-score-big" id="image-score">0</div>
+            </div>
+            <div class="detail-body">
+              <div class="detail-left"><div id="image-breakdown"></div></div>
+              <div class="detail-right"><div id="image-analysis"></div></div>
+            </div>
+          </div>
+          <div id="image-platform-fit"></div>
+        </div>
+      </section>
+    </div><!-- /tab-image -->
+
+    <!-- ======== TAB: ACCOUNT INTELLIGENCE ======== -->
+    <div id="tab-insights" class="tab-pane active">
+      <section class="insights-section">
+        <div class="results-header">
+          <h2>Account Intelligence</h2>
+          <p class="results-sub">Real engagement patterns decoded from Stars of Science accounts — or benchmark a competitor</p>
+        </div>
+        <div class="competitor-bench-header">
+          <span class="competitor-bench-title">🏁 Competitor Benchmarking</span>
+          <span class="competitor-bench-sub">Compare any account against Stars of Science — leave fields blank to analyze the SoS defaults</span>
+        </div>
+        <div class="insights-inputs">
+          <div class="extra-input-group">
+            <label class="extra-label" for="insights-instagram">📸 Instagram handle</label>
+            <input type="text" id="insights-instagram" placeholder="competitor handle, e.g. nasa">
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="insights-tiktok">🎵 TikTok handle</label>
+            <input type="text" id="insights-tiktok" placeholder="competitor handle, e.g. nasa">
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="insights-twitter">🐦 X / Twitter handle</label>
+            <input type="text" id="insights-twitter" placeholder="competitor handle, e.g. NASA">
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="insights-youtube">▶️ YouTube URL / handle</label>
+            <input type="text" id="insights-youtube" placeholder="youtube.com/@nasa or UC… ID">
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="insights-facebook">📘 Facebook page URL</label>
+            <input type="text" id="insights-facebook" placeholder="competitor page URL">
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-load-insights">
+          <span class="btn-icon">📊</span> Load Account Intelligence
+        </button>
+        <div id="insights-mock-banner" class="mock-banner hidden">
+          ⚠️ <strong>Demo data</strong> — the backend is unreachable, so these numbers are
+          <strong>fabricated</strong>, not real analytics. <span id="insights-mock-reason"></span>
+        </div>
+        <div class="pipeline-steps hidden" id="insights-loading">
+          <div class="pipeline-step" id="step-insights-fetch">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Fetching account data</span>
+              <span class="step-detail">Pulling real post data via RapidAPI for all platforms</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-insights-ai">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">AI pattern analysis</span>
+              <span class="step-detail">GPT-4o-mini decoding engagement signals</span>
+            </div>
+          </div>
+        </div>
+        <div id="insights-overall" class="insights-overall hidden"></div>
+        <div id="insights-growth" class="insights-growth hidden"></div>
+        <div id="insights-grid" class="insights-grid"></div>
+      </section>
+    </div><!-- /tab-insights -->
+
+    <!-- ======== TAB: VIDEO ANALYZER ======== -->
+    <div id="tab-video" class="tab-pane hidden">
+      <section class="video-section">
+        <div class="results-header">
+          <h2>AI Edit Suggestions</h2>
+          <p class="results-sub">Upload a video draft and get metadata-aware, transcript-aware edit suggestions for a target platform.</p>
+        </div>
+        <div class="video-upload-area" id="video-upload-area">
+          <input type="file" id="video-file-input" accept="video/*" class="hidden">
+          <div class="upload-prompt" id="upload-prompt">
+            <span class="upload-icon">Video</span>
+            <span>Click to upload or drag and drop</span>
+            <span class="upload-sub">MP4, MOV, AVI - metadata extraction runs immediately, transcription is optional.</span>
+          </div>
+          <div class="upload-selected hidden" id="upload-selected">
+            <span class="upload-icon">Ready</span>
+            <span id="upload-filename"></span>
+            <button class="btn-secondary" id="btn-clear-video">Change</button>
+          </div>
+        </div>
+        <div class="extra-inputs" style="margin-top:14px;">
+          <div class="extra-input-group">
+            <label class="extra-label" for="video-platform-select">Target platform</label>
+            <select id="video-platform-select">
+              <option value="instagram">Instagram</option>
+              <option value="tiktok">TikTok</option>
+              <option value="twitter">X / Twitter</option>
+              <option value="youtube">YouTube</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="facebook">Facebook</option>
+            </select>
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="video-goal-input">Goal</label>
+            <input type="text" id="video-goal-input" placeholder="Optional: increase retention, drive comments, improve hook">
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-analyze-video" style="margin-top:16px;" disabled>
+          <span class="btn-icon">AI</span> Generate AI Edit Suggestions
+        </button>
+
+        <div class="pipeline-steps hidden" id="video-loading">
+          <div class="pipeline-step" id="step-video-frames">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">OK</div></div>
+            <div class="step-info">
+              <span class="step-label">Reading metadata and transcript</span>
+              <span class="step-detail">Inspecting duration, format, audio, and available speech segments</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-video-ai">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">OK</div></div>
+            <div class="step-info">
+              <span class="step-label">Generating edit suggestions</span>
+              <span class="step-detail">OpenAI creates edit notes, captions, hashtags, and a CTA</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="video-results" class="hidden">
+          <div id="video-summary-card"></div>
+          <div id="video-edit-suggestions"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ======== TAB: CAMPAIGN PACK ======== -->
+    <div id="tab-campaign" class="tab-pane hidden">
+      <section class="campaign-section">
+        <div class="results-header">
+          <h2>Campaign Pack</h2>
+          <p class="results-sub">From one idea to six platform-native posts — ready to publish in seconds</p>
+        </div>
+
+        <div class="input-box">
+          <textarea id="campaign-goal-input" dir="auto" placeholder="Describe your campaign goal...&#10;&#10;e.g. &quot;Season 17 applications open June 20 — drive young Arab innovators to apply&quot;"></textarea>
+        </div>
+        <div class="extra-inputs" style="margin-top:14px;">
+          <div class="extra-input-group">
+            <label class="extra-label" for="campaign-persona">Target audience</label>
+            <select id="campaign-persona">
+              <option value="general">🌍 General Audience</option>
+              <option value="applicants">🎓 Potential Applicants</option>
+              <option value="viewers">📺 Viewers &amp; Fans</option>
+              <option value="sponsors">🤝 Sponsors &amp; Partners</option>
+            </select>
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="campaign-goal-select">Goal</label>
+            <select id="campaign-goal-select">
+              <option value="reach">📈 Maximize Reach</option>
+              <option value="engagement">💬 Maximize Engagement</option>
+              <option value="conversions">🎯 Maximize Conversions</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-generate-campaign" style="margin-top:16px;">
+          <span class="btn-icon">🚀</span> Generate Campaign Pack
+        </button>
+
+        <div class="pipeline-steps hidden" id="campaign-loading">
+          <div class="pipeline-step" id="step-campaign-plan">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Planning the campaign</span>
+              <span class="step-detail">Aligning angle, persona, and posting windows</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-campaign-ai">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Writing 6 platform-native posts</span>
+              <span class="step-detail">GPT-4o-mini drafting bilingual posts per platform</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="campaign-results" class="hidden">
+          <div id="campaign-overall" class="insights-overall hidden"></div>
+
+          <!-- Editable poster creatives (Fabric.js) -->
+          <div id="creatives-section" class="creatives-section hidden">
+            <div class="results-header">
+              <h2>Editable Creatives</h2>
+              <p class="results-sub">AI-generated posters — click Edit to change text, fonts, colors &amp; layout, then export PNG</p>
+            </div>
+            <div class="creatives-grid">
+              <div class="creative-card" id="creative-social">
+                <div class="creative-preview-wrap">
+                  <canvas class="creative-preview" data-group="social"></canvas>
+                  <div class="creative-loading" data-group="social"><div class="step-spinner"></div><span>Generating image…</span></div>
+                </div>
+                <div class="creative-card-foot">
+                  <span class="creative-label">📱 Social <span class="creative-sub">IG · TikTok · X · YouTube</span></span>
+                  <div class="creative-actions">
+                    <button class="copy-btn creative-ai-btn" data-group="social">🤖 AI</button>
+                    <button class="copy-btn creative-pexels-btn" data-group="social">🖼️ Pexels</button>
+                    <button class="copy-btn creative-edit-btn" data-group="social">✏️ Edit</button>
+                    <button class="copy-btn creative-png-btn" data-group="social">⬇ PNG</button>
+                  </div>
+                </div>
+              </div>
+              <div class="creative-card" id="creative-linkedin">
+                <div class="creative-preview-wrap">
+                  <canvas class="creative-preview" data-group="linkedin"></canvas>
+                  <div class="creative-loading" data-group="linkedin"><div class="step-spinner"></div><span>Generating image…</span></div>
+                </div>
+                <div class="creative-card-foot">
+                  <span class="creative-label">💼 LinkedIn <span class="creative-sub">Professional</span></span>
+                  <div class="creative-actions">
+                    <button class="copy-btn creative-ai-btn" data-group="linkedin">🤖 AI</button>
+                    <button class="copy-btn creative-pexels-btn" data-group="linkedin">🖼️ Pexels</button>
+                    <button class="copy-btn creative-edit-btn" data-group="linkedin">✏️ Edit</button>
+                    <button class="copy-btn creative-png-btn" data-group="linkedin">⬇ PNG</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="results-header" id="campaign-posts-header" style="margin-top:32px;">
+            <h2>Platform Posts</h2>
+            <p class="results-sub">Ready-to-publish captions, hashtags &amp; timing per platform</p>
+          </div>
+          <div id="campaign-grid" class="campaign-grid"></div>
+        </div>
+      </section>
+    </div><!-- /tab-campaign -->
+
+  </main>
+
+  <footer class="site-footer">
+    <p>Built at Build For QSTP Hackathon #3 — Stars of Science</p>
+  </footer>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- ======== INSIGHT / INFO MODAL ======== -->
+  <div id="insight-modal" class="insight-modal hidden" role="dialog" aria-modal="true" aria-labelledby="insight-modal-title">
+    <div class="insight-modal-backdrop" id="insight-modal-backdrop"></div>
+    <div class="insight-modal-card">
+      <button class="insight-modal-close" id="insight-modal-close" aria-label="Close">✕</button>
+      <div class="insight-modal-header">
+        <span class="insight-modal-icon" id="insight-modal-icon"></span>
+        <span class="insight-modal-title" id="insight-modal-title"></span>
+      </div>
+      <div class="insight-modal-body" id="insight-modal-body"></div>
+      <div class="insight-modal-nav hidden" id="insight-modal-nav">
+        <button class="insight-modal-btn" id="insight-modal-prev">‹ Prev</button>
+        <span class="insight-modal-indicator" id="insight-modal-indicator">1 / 4</span>
+        <button class="insight-modal-btn" id="insight-modal-next">Next ›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== DESIGN EDITOR (Fabric.js) ======== -->
+  <div id="design-editor" class="design-editor hidden" role="dialog" aria-modal="true">
+    <div class="design-editor-backdrop" id="design-editor-backdrop"></div>
+    <div class="design-editor-card">
+      <div class="design-editor-head">
+        <span class="design-editor-title" id="design-editor-title">Edit Creative</span>
+        <button class="design-editor-close" id="design-editor-close" aria-label="Close">✕</button>
+      </div>
+      <div class="design-editor-body">
+        <div class="design-canvas-wrap" id="design-canvas-wrap">
+          <canvas id="design-canvas"></canvas>
+        </div>
+        <div class="design-controls">
+          <div class="dc-group">
+            <div class="dc-label">Layers</div>
+            <div class="dc-layers" id="dc-layers"></div>
+          </div>
+          <div class="dc-group" id="dc-text-group">
+            <div class="dc-label">Text</div>
+            <textarea id="dc-text" class="dc-text-input" rows="2" placeholder="Select a layer…" disabled></textarea>
+            <button class="copy-btn dc-regen-btn" id="dc-regen" disabled>✨ Regenerate options</button>
+            <div class="dc-regen-options hidden" id="dc-regen-options"></div>
+          </div>
+          <div class="dc-row">
+            <div class="dc-group dc-grow">
+              <div class="dc-label">Font</div>
+              <select id="dc-font" class="dc-select" disabled>
+                <option value="Montserrat">Montserrat</option>
+                <option value="Poppins">Poppins</option>
+                <option value="Oswald">Oswald</option>
+                <option value="Playfair Display">Playfair Display</option>
+                <option value="Space Grotesk">Space Grotesk</option>
+                <option value="Inter">Inter</option>
+              </select>
+            </div>
+            <div class="dc-group">
+              <div class="dc-label">Color</div>
+              <input type="color" id="dc-color" class="dc-color" value="#FFFFFF" disabled>
+            </div>
+          </div>
+          <div class="dc-group">
+            <div class="dc-label">Size <span id="dc-size-val">64</span>px</div>
+            <input type="range" id="dc-size" class="dc-range" min="12" max="180" value="64" disabled>
+          </div>
+          <div class="dc-group">
+            <div class="dc-label">Background</div>
+            <div class="dc-bg-actions">
+              <button class="copy-btn dc-bg-regen" id="dc-bg-regen">🤖 Generate AI</button>
+              <button class="copy-btn dc-bg-pexels" id="dc-bg-pexels">🖼️ Pexels</button>
+              <label class="copy-btn dc-bg-upload">📁 Replace
+                <input type="file" id="dc-bg-file" accept="image/*" class="hidden">
+              </label>
+            </div>
+          </div>
+          <button class="btn-primary dc-export" id="dc-export"><span class="btn-icon">⬇</span> Download PNG</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== PEXELS PHOTO PICKER ======== -->
+  <div id="pexels-modal" class="insight-modal hidden" role="dialog" aria-modal="true" aria-label="Pick a Pexels photo">
+    <div class="insight-modal-backdrop" id="pexels-backdrop"></div>
+    <div class="insight-modal-card pexels-card">
+      <button class="insight-modal-close" id="pexels-close" aria-label="Close">✕</button>
+      <div class="insight-modal-header">
+        <span class="insight-modal-icon">🖼️</span>
+        <span class="insight-modal-title">Pick a Pexels photo</span>
+      </div>
+      <div class="pexels-search-row">
+        <input type="text" id="pexels-query" class="settings-input" placeholder="Search photos…" autocomplete="off">
+        <button class="btn-primary pexels-search-btn" id="pexels-search-btn">Search</button>
+      </div>
+      <div class="insight-modal-body">
+        <div class="pexels-loading hidden" id="pexels-loading"><div class="step-spinner"></div><span>Searching Pexels…</span></div>
+        <div class="pexels-grid" id="pexels-grid"></div>
+        <div class="pexels-empty hidden" id="pexels-empty">No photos found — try a different search.</div>
+      </div>
+      <div class="pexels-credit">Photos provided by <a href="https://www.pexels.com" target="_blank" rel="noopener">Pexels</a></div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

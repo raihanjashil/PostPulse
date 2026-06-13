@@ -2323,15 +2323,15 @@ function generateMockCampaign(goalText, persona) {
         headline: shortGoal || 'Stars of Science',
         subheadline: 'Where Arab innovation takes the stage',
         cta: 'Apply Now',
-        background_prompt: 'vibrant futuristic science lab, teal and lime energy, no text',
-        theme: { text: '#FFFFFF', accent: '#B8D930' },
+        background_prompt: 'vibrant futuristic science lab, lavender and violet energy, no text',
+        theme: { text: '#FFFFFF', accent: '#D9CCFF' },
       },
       linkedin: {
         headline: shortGoal || 'Stars of Science',
         subheadline: 'Backing the region’s next generation of innovators',
         cta: 'Learn More',
-        background_prompt: 'clean professional innovation backdrop, deep teal, minimal, no text',
-        theme: { text: '#FFFFFF', accent: '#B8D930' },
+        background_prompt: 'clean professional innovation backdrop, deep violet, minimal, no text',
+        theme: { text: '#FFFFFF', accent: '#D9CCFF' },
       },
     },
     overall_note: `[Mock] A coordinated 6-platform push for "${goalText}" — lead with the hook on TikTok/Instagram, drive applications via the link on X/LinkedIn, and sustain reach on YouTube/Facebook.`,
@@ -2352,7 +2352,7 @@ const CREATIVE_GROUP = {
 const DESIGN_TEMPLATES = {
   social: {
     width: 1080, height: 1080,
-    gradient: ['#0D7377', '#B8D930'],
+    gradient: ['#7C5CFF', '#B7A4FF'],
     layers: (c, theme) => ([
       { id: 'headline',    text: c.headline || 'Your Headline',      x: 80, y: 140, fontSize: 104, fontFamily: 'Montserrat', fontWeight: '800', fill: theme.text,   width: 920 },
       { id: 'subheadline', text: c.subheadline || '',                x: 80, y: 380, fontSize: 48,  fontFamily: 'Poppins',    fontWeight: '600', fill: theme.text,   width: 900 },
@@ -2361,7 +2361,7 @@ const DESIGN_TEMPLATES = {
   },
   linkedin: {
     width: 1200, height: 627,
-    gradient: ['#0A1E24', '#0D7377'],
+    gradient: ['#16151C', '#7C5CFF'],
     layers: (c, theme) => ([
       { id: 'headline',    text: c.headline || 'Your Headline',      x: 64, y: 110, fontSize: 80, fontFamily: 'Poppins', fontWeight: '700', fill: theme.text,   width: 800 },
       { id: 'subheadline', text: c.subheadline || '',                x: 64, y: 250, fontSize: 38, fontFamily: 'Inter',   fontWeight: '500', fill: theme.text,   width: 820 },
@@ -2456,7 +2456,7 @@ function buildDesigns(creatives) {
   campaignDesigns = {};
   ['social', 'linkedin'].forEach(group => {
     const c = (creatives && creatives[group]) || {};
-    const theme = c.theme && c.theme.text ? c.theme : { text: '#FFFFFF', accent: '#B8D930' };
+    const theme = c.theme && c.theme.text ? c.theme : { text: '#FFFFFF', accent: '#D9CCFF' };
     const tpl = DESIGN_TEMPLATES[group];
     campaignDesigns[group] = {
       group, width: tpl.width, height: tpl.height,
