@@ -62,6 +62,135 @@ const PLATFORMS = {
   facebook:  { name: 'Facebook',      color: '#1877F2', icon: '📘' },
 };
 
+function renderPlatformIcon(pid, className = 'platform-inline-icon') {
+  const cls = `${className} platform-${pid}`;
+  switch (pid) {
+    case 'instagram':
+      return `<span class="${cls}" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="4" y="4" width="16" height="16" rx="5" class="platform-icon-outline"></rect><circle cx="12" cy="12" r="3.6" class="platform-icon-outline"></circle><circle cx="17.2" cy="6.8" r="1.2" class="platform-icon-solid"></circle></svg></span>`;
+    case 'tiktok':
+      return `<span class="${cls}" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M14.35 3.5c.46 1.87 1.72 3.29 3.62 4.04v2.73c-1.37-.04-2.58-.42-3.62-1.12v6.2c0 3.07-2.18 5.15-5.22 5.15-2.81 0-4.89-2.1-4.89-4.82 0-2.89 2.31-4.97 5.42-4.97.33 0 .66.03 1 .1v2.77a3.7 3.7 0 0 0-.97-.13c-1.47 0-2.51.93-2.51 2.18 0 1.26.98 2.2 2.3 2.2 1.42 0 2.22-.91 2.22-2.8V3.5h2.65Z"></path></svg></span>`;
+    case 'twitter':
+      return `<span class="${cls}" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M18.9 4h-2.77l-3.96 4.51L8.88 4H4l5.71 7.36L4.3 20h2.77l4.26-4.86L15.1 20H20l-5.98-7.71L18.9 4Z"></path></svg></span>`;
+    case 'youtube':
+      return `<span class="${cls}" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M21.8 8.6a3.25 3.25 0 0 0-2.29-2.3C17.55 5.78 12 5.78 12 5.78s-5.55 0-7.51.52A3.25 3.25 0 0 0 2.2 8.6 34.4 34.4 0 0 0 1.67 12c0 1.16.18 2.3.53 3.4a3.25 3.25 0 0 0 2.29 2.3c1.96.52 7.51.52 7.51.52s5.55 0 7.51-.52a3.25 3.25 0 0 0 2.29-2.3c.35-1.1.53-2.24.53-3.4s-.18-2.3-.53-3.4Z" class="platform-icon-solid"></path><path d="m10.15 15.35 5.1-3.35-5.1-3.35v6.7Z" class="platform-icon-cutout"></path></svg></span>`;
+    case 'linkedin':
+      return `<span class="${cls}" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M6.72 8.44a1.72 1.72 0 1 1 0-3.44 1.72 1.72 0 0 1 0 3.44ZM5.2 9.7H8.2V19H5.2V9.7Zm4.7 0h2.88v1.27h.04c.4-.76 1.38-1.56 2.84-1.56 3.04 0 3.6 2 3.6 4.6V19h-3v-4.43c0-1.05-.02-2.41-1.47-2.41-1.47 0-1.7 1.15-1.7 2.33V19h-3V9.7Z"></path></svg></span>`;
+    case 'facebook':
+      return `<span class="${cls}" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M13.39 20v-6.2h2.08l.31-2.42H13.4V9.83c0-.7.19-1.18 1.2-1.18h1.28V6.49c-.22-.03-.99-.09-1.88-.09-1.86 0-3.13 1.13-3.13 3.22v1.76H8.76v2.42h2.11V20h2.52Z"></path></svg></span>`;
+    default:
+      return `<span class="${className}" aria-hidden="true">${PLATFORMS[pid]?.icon || '•'}</span>`;
+  }
+}
+
+function enhancePlatformSelect(selectId) {
+  const select = $(selectId);
+  if (!select || select.dataset.enhanced === 'true') return;
+
+  const options = Array.from(select.options).map(option => ({
+    value: option.value,
+    label: option.textContent.trim(),
+  }));
+  if (!options.length) return;
+
+  select.dataset.enhanced = 'true';
+  select.classList.add('platform-picker-native');
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'platform-picker';
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'platform-picker-trigger';
+  trigger.setAttribute('aria-haspopup', 'listbox');
+  trigger.setAttribute('aria-expanded', 'false');
+
+  const menu = document.createElement('div');
+  menu.className = 'platform-picker-menu hidden';
+  menu.setAttribute('role', 'listbox');
+
+  const optionButtons = new Map();
+
+  function closeMenu() {
+    wrapper.classList.remove('open');
+    menu.classList.add('hidden');
+    trigger.setAttribute('aria-expanded', 'false');
+  }
+
+  function openMenu() {
+    wrapper.classList.add('open');
+    menu.classList.remove('hidden');
+    trigger.setAttribute('aria-expanded', 'true');
+  }
+
+  function renderValue() {
+    const selected = options.find(option => option.value === select.value) || options[0];
+    trigger.innerHTML = `
+      <span class="platform-picker-value">
+        ${renderPlatformIcon(selected.value, 'platform-picker-icon')}
+        <span>${selected.label}</span>
+      </span>
+      <span class="platform-picker-caret" aria-hidden="true">
+        <svg viewBox="0 0 16 16" focusable="false">
+          <path d="m4 6 4 4 4-4"></path>
+        </svg>
+      </span>
+    `;
+
+    optionButtons.forEach((button, value) => {
+      const isActive = value === selected.value;
+      button.classList.toggle('active', isActive);
+      button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+  }
+
+  options.forEach(option => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'platform-picker-option';
+    button.setAttribute('role', 'option');
+    button.dataset.value = option.value;
+    button.innerHTML = `
+      ${renderPlatformIcon(option.value, 'platform-picker-icon')}
+      <span>${option.label}</span>
+    `;
+    button.addEventListener('click', () => {
+      select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      renderValue();
+      closeMenu();
+      trigger.focus();
+    });
+    optionButtons.set(option.value, button);
+    menu.appendChild(button);
+  });
+
+  trigger.addEventListener('click', () => {
+    if (wrapper.classList.contains('open')) closeMenu();
+    else openMenu();
+  });
+
+  trigger.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openMenu();
+    }
+    if (event.key === 'Escape') closeMenu();
+  });
+
+  document.addEventListener('click', event => {
+    if (!wrapper.contains(event.target)) closeMenu();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeMenu();
+  });
+
+  select.addEventListener('change', renderValue);
+
+  wrapper.append(trigger, menu);
+  select.insertAdjacentElement('afterend', wrapper);
+  renderValue();
+}
+
 // Score dimensions returned by backend (0-20 each)
 const CRITERIA = [
   { key: 'hook',    label: 'Hook Strength' },
@@ -138,6 +267,7 @@ function init() {
   initTabs();
   initVideoUpload();
   initImageUpload();
+  enhancePlatformSelect('video-platform-select');
   initInsightModal();
   initDesignEditor();
   initPexels();
@@ -260,7 +390,7 @@ function renderAccountsBanner() {
     if (COMING_SOON_PLATFORMS.includes(pid)) {
       card.className = 'account-card coming-soon';
       card.innerHTML = `
-        <div class="account-platform-icon">${p.icon}</div>
+        ${renderPlatformIcon(pid, 'account-platform-icon')}
         <div class="account-platform-name">${p.name}</div>
         <button class="btn-connect-blocked" disabled>Coming soon</button>
       `;
@@ -276,7 +406,7 @@ function renderAccountsBanner() {
 
     card.className = `account-card${isConnected ? ' connected' : ''}`;
     card.innerHTML = `
-      <div class="account-platform-icon">${p.icon}</div>
+      ${renderPlatformIcon(pid, 'account-platform-icon')}
       <div class="account-platform-name">${p.name}</div>
       ${isConnected
         ? `<div class="account-username">@${conn.username}</div>
@@ -851,12 +981,12 @@ function renderAudienceTabs(variants, activeIdx, showAlt = false) {
 // Mirror of backend OPTIMAL_POSTING_TIMES, pre-bucketed into time-of-day columns.
 const HEAT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HEAT_BUCKETS = [
-  ['early', '🌅 6–9a'],
-  ['lateam', '☀️ 9–12'],
-  ['midday', '🌤️ 12–3'],
-  ['afternoon', '🌇 3–6'],
-  ['evening', '🌆 6–9p'],
-  ['night', '🌙 9p+'],
+  ['early', '6-9a'],
+  ['lateam', '9-12'],
+  ['midday', '12-3'],
+  ['afternoon', '3-6'],
+  ['evening', '6-9p'],
+  ['night', '9p+'],
 ];
 const POSTING_HEATMAP = {
   instagram: { days: ['Tue', 'Wed', 'Fri'], buckets: ['early', 'midday', 'afternoon', 'evening'], note: 'Thursday evening high engagement pre-weekend in Gulf' },
@@ -867,13 +997,34 @@ const POSTING_HEATMAP = {
   facebook:  { days: ['Wed', 'Thu', 'Fri'], buckets: ['midday', 'evening'], note: 'Friday afternoon and evening peak across the Gulf' },
 };
 
+function renderHeatBucketIcon(bucket) {
+  switch (bucket) {
+    case 'early':
+      return '<span class="hm-time-icon hm-time-sunrise" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 16h16" class="hm-time-stroke"></path><path d="M7 16a5 5 0 0 1 10 0" class="hm-time-stroke"></path><path d="M12 4v3M5.6 8.2l2.1 2.1M18.4 8.2l-2.1 2.1" class="hm-time-stroke"></path></svg></span>';
+    case 'lateam':
+      return '<span class="hm-time-icon hm-time-day" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="4"></circle><path d="M12 2.8v2.4M12 18.8v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.8 12h2.4M18.8 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" class="hm-time-stroke"></path></svg></span>';
+    case 'midday':
+      return '<span class="hm-time-icon hm-time-midday" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7 15.5h9.8a3.2 3.2 0 0 0 0-6.4 4.9 4.9 0 0 0-9.3-1.8A4.1 4.1 0 0 0 7 15.5Z" class="hm-time-stroke"></path><circle cx="17" cy="7" r="2.2"></circle></svg></span>';
+    case 'afternoon':
+      return '<span class="hm-time-icon hm-time-afternoon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 17h16" class="hm-time-stroke"></path><path d="M6.5 17a5.5 5.5 0 0 1 11 0" class="hm-time-stroke"></path><path d="M8 13h8" class="hm-time-stroke"></path><path d="M12 7v3" class="hm-time-stroke"></path></svg></span>';
+    case 'evening':
+      return '<span class="hm-time-icon hm-time-evening" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 17h16" class="hm-time-stroke"></path><rect x="7" y="9" width="3" height="8" rx="1"></rect><rect x="12" y="6" width="3" height="11" rx="1"></rect><rect x="17" y="11" width="2" height="6" rx="1"></rect></svg></span>';
+    case 'night':
+      return '<span class="hm-time-icon hm-time-night" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M16.8 17.6A7.2 7.2 0 0 1 8.4 6.2a7.8 7.8 0 1 0 8.4 11.4Z"></path><path d="M18.2 5.2l.4 1.1 1.1.4-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.4.4-1.1Z"></path></svg></span>';
+    default:
+      return '';
+  }
+}
+
 function renderSchedule() {
   scheduleGrid.innerHTML = '';
 
   // Header row: blank corner + bucket labels
   let html = '<div class="heatmap">';
   html += '<div class="hm-corner"></div>';
-  HEAT_BUCKETS.forEach(([, label]) => { html += `<div class="hm-head">${label}</div>`; });
+  HEAT_BUCKETS.forEach(([bucket, label]) => {
+    html += `<div class="hm-head">${renderHeatBucketIcon(bucket)}<span>${label}</span></div>`;
+  });
 
   // One row per day; each cell collects platforms active in that (day, bucket)
   HEAT_DAYS.forEach(day => {
@@ -883,7 +1034,9 @@ function renderSchedule() {
         .filter(([, cfg]) => cfg.days.includes(day) && cfg.buckets.includes(bucket))
         .map(([pid]) => pid);
       const level = Math.min(hits.length, 3);
-      const icons = hits.map(pid => `<span title="${PLATFORMS[pid]?.name || pid}">${PLATFORMS[pid]?.icon || ''}</span>`).join('');
+      const icons = hits
+        .map(pid => `<span class="hm-platform-icon-wrap" title="${PLATFORMS[pid]?.name || pid}">${renderPlatformIcon(pid, 'hm-platform-icon')}</span>`)
+        .join('');
       html += `<div class="hm-cell hm-${level}">${icons}</div>`;
     });
   });
@@ -893,7 +1046,7 @@ function renderSchedule() {
   html += '<div class="hm-legend">';
   Object.entries(POSTING_HEATMAP).forEach(([pid, cfg]) => {
     const p = PLATFORMS[pid];
-    html += `<span class="hm-legend-item" title="${cfg.note}">${p?.icon || ''} ${p?.name || pid}</span>`;
+    html += `<span class="hm-legend-item" title="${cfg.note}">${renderPlatformIcon(pid, 'hm-legend-icon')}<span>${p?.name || pid}</span></span>`;
   });
   html += '</div>';
 
@@ -1187,15 +1340,37 @@ function generateMockData(draft, platforms) {
 // TAB SWITCHING
 // =============================
 
+const ACTIVE_TAB_STORAGE_KEY = 'postpulse_active_tab';
+
+function activateTab(tabId) {
+  const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  const targetPane = $(`tab-${tabId}`);
+  if (!targetBtn || !targetPane) return false;
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn === targetBtn);
+  });
+  document.querySelectorAll('.tab-pane').forEach(pane => {
+    pane.classList.toggle('hidden', pane !== targetPane);
+  });
+
+  document.documentElement.dataset.activeTab = tabId;
+  localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabId);
+  return true;
+}
+
 function initTabs() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
-      btn.classList.add('active');
-      $(`tab-${btn.dataset.tab}`)?.classList.remove('hidden');
+      activateTab(btn.dataset.tab);
     });
   });
+
+  const savedTab = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+  if (savedTab && activateTab(savedTab)) return;
+
+  const currentActive = document.querySelector('.tab-btn.active')?.dataset.tab || 'insights';
+  activateTab(currentActive);
 }
 
 // =============================
@@ -1886,7 +2061,7 @@ function renderVideoResultsLegacy(data) {
       card.className = 'platform-fit-card';
       card.innerHTML = `
         <div class="pfit-header">
-          <span class="pfit-icon">${p.icon}</span>
+          ${renderPlatformIcon(pid, 'pfit-icon')}
           <span class="pfit-name">${p.name}</span>
         </div>
         <div class="pfit-headline">${fit.headline || '—'}</div>
@@ -2123,7 +2298,7 @@ function renderImageResults(data) {
       const card = document.createElement('div');
       card.className = 'platform-fit-card';
       card.innerHTML = `
-        <div class="pfit-header"><span class="pfit-icon">${p.icon}</span><span class="pfit-name">${p.name}</span></div>
+        <div class="pfit-header">${renderPlatformIcon(pid, 'pfit-icon')}<span class="pfit-name">${p.name}</span></div>
         <div class="pfit-headline">${fit.headline || '—'}</div>
         <ul class="pfit-patterns">${(fit.patterns || []).map(pat => `<li>${pat}</li>`).join('')}</ul>
         <div class="pfit-recommendation">💡 ${fit.recommendation || '—'}</div>
@@ -3616,8 +3791,10 @@ function renderMusicMatchSection() {
       ${warningMarkup}
       ${musicMatchState.statusMessage ? `<div class="music-status-message">${escapeHtml(musicMatchState.statusMessage)}</div>` : ''}
 
-      <div class="music-track-grid">
-        ${trackMarkup}
+      <div class="music-track-list">
+        <div class="music-track-grid">
+          ${trackMarkup}
+        </div>
       </div>
 
       ${audioModeSelectorHtml}

@@ -4,6 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PostPulse — AI Content Optimizer for Stars of Science</title>
+  <script>
+    (() => {
+      try {
+        const tab = localStorage.getItem('postpulse_active_tab');
+        if (['insights', 'scorer', 'image', 'video', 'campaign'].includes(tab)) {
+          document.documentElement.dataset.activeTab = tab;
+        }
+      } catch (_) {}
+    })();
+  </script>
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=Montserrat:wght@500;700;800&family=Poppins:wght@500;700&family=Oswald:wght@500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -40,11 +50,54 @@
 
     <!-- TAB BAR -->
     <div class="tab-bar">
-      <button class="tab-btn active" data-tab="insights">📊 Account Intelligence</button>
-      <button class="tab-btn" data-tab="scorer">⚡ Post Scorer</button>
-      <button class="tab-btn" data-tab="image">🖼️ Image Analyzer</button>
-      <button class="tab-btn" data-tab="video">🎬 Video Analyzer</button>
-      <button class="tab-btn" data-tab="campaign">🚀 Campaign Pack</button>
+      <button class="tab-btn active" data-tab="insights">
+        <span class="tab-btn-icon tab-icon-insights" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <rect x="4" y="10" width="3.2" height="9" rx="1.2"></rect>
+            <rect x="10.4" y="6" width="3.2" height="13" rx="1.2"></rect>
+            <rect x="16.8" y="3" width="3.2" height="16" rx="1.2"></rect>
+            <path d="M3.5 20.5h17" class="tab-icon-stroke"></path>
+          </svg>
+        </span>
+        <span>Account Intelligence</span>
+      </button>
+      <button class="tab-btn" data-tab="scorer">
+        <span class="tab-btn-icon tab-icon-scorer" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="m13.1 2.8-6.4 10h4.2l-1.1 8.4 7.5-11h-4.4l.2-7.4Z"></path>
+          </svg>
+        </span>
+        <span>Post Scorer</span>
+      </button>
+      <button class="tab-btn" data-tab="image">
+        <span class="tab-btn-icon tab-icon-image" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <rect x="3.5" y="5" width="17" height="14" rx="2.5" class="tab-icon-stroke"></rect>
+            <circle cx="9" cy="10" r="1.7"></circle>
+            <path d="m6.7 16 3.3-3.7 2.7 2.5 3.9-4.5 3 5.7H6.7Z"></path>
+          </svg>
+        </span>
+        <span>Image Analyzer</span>
+      </button>
+      <button class="tab-btn" data-tab="video">
+        <span class="tab-btn-icon tab-icon-video" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <rect x="3.5" y="6.5" width="12.5" height="11" rx="2.2" class="tab-icon-stroke"></rect>
+            <path d="m16 10 4.5-2.6v9.2L16 14Z"></path>
+            <path d="M6.5 6.5 8 3.8m4 2.7 1.5-2.7m4 2.7L19 3.8" class="tab-icon-stroke"></path>
+          </svg>
+        </span>
+        <span>Video Analyzer</span>
+      </button>
+      <button class="tab-btn" data-tab="campaign">
+        <span class="tab-btn-icon tab-icon-campaign" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="m13.4 3.4 7.2 7.2-4 1.2-2.4 5-2.9-2.9-4.3 2 2-4.3-2.9-2.9 5-2.4 1.2-4Z"></path>
+            <path d="m6 18 2.2-2.2m-1 4.2 2.2-2.2" class="tab-icon-stroke"></path>
+          </svg>
+        </span>
+        <span>Campaign Pack</span>
+      </button>
     </div>
 
     <!-- ======== TAB: POST SCORER ======== -->
@@ -97,9 +150,31 @@
           <div class="platform-select">
             <span class="platform-select-label">Target platforms</span>
             <div class="platform-chips">
-              <button class="chip active" data-platform="twitter">🐦 X / Twitter</button>
-              <button class="chip active" data-platform="linkedin">💼 LinkedIn</button>
-              <button class="chip active" data-platform="facebook">📘 Facebook</button>
+              <button class="chip active" data-platform="twitter">
+                <span class="chip-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M18.9 4h-2.77l-3.96 4.51L8.88 4H4l5.71 7.36L4.3 20h2.77l4.26-4.86L15.1 20H20l-5.98-7.71L18.9 4Z" class="chip-icon-solid"></path>
+                  </svg>
+                </span>
+                <span>X / Twitter</span>
+              </button>
+              <button class="chip active" data-platform="linkedin">
+                <span class="chip-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <circle cx="6.72" cy="6.72" r="1.72" class="chip-icon-solid"></circle>
+                    <path d="M5.2 9.7H8.2V19H5.2V9.7Zm4.7 0h2.88v1.27h.04c.4-.76 1.38-1.56 2.84-1.56 3.04 0 3.6 2 3.6 4.6V19h-3v-4.43c0-1.05-.02-2.41-1.47-2.41-1.47 0-1.7 1.15-1.7 2.33V19h-3V9.7Z" class="chip-icon-solid"></path>
+                  </svg>
+                </span>
+                <span>LinkedIn</span>
+              </button>
+              <button class="chip active" data-platform="facebook">
+                <span class="chip-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M13.39 20v-6.2h2.08l.31-2.42H13.4V9.83c0-.7.19-1.18 1.2-1.18h1.28V6.49c-.22-.03-.99-.09-1.88-.09-1.86 0-3.13 1.13-3.13 3.22v1.76H8.76v2.42h2.11V20h2.52Z" class="chip-icon-solid"></path>
+                  </svg>
+                </span>
+                <span>Facebook</span>
+              </button>
             </div>
           </div>
         </div>
@@ -223,12 +298,34 @@
         <div class="video-upload-area" id="image-upload-area">
           <input type="file" id="image-file-input" accept="image/*" class="hidden">
           <div class="upload-prompt" id="upload-prompt-image">
-            <span class="upload-icon">🖼️</span>
+            <span class="upload-icon upload-icon-image" aria-hidden="true">
+              <svg viewBox="0 0 32 32" focusable="false">
+                <defs>
+                  <linearGradient id="upload-image-sky" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#8FD3FF"></stop>
+                    <stop offset="100%" stop-color="#DCCBFF"></stop>
+                  </linearGradient>
+                  <linearGradient id="upload-image-hills" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#2FA772"></stop>
+                    <stop offset="100%" stop-color="#7C5CFF"></stop>
+                  </linearGradient>
+                </defs>
+                <rect x="3.5" y="5" width="25" height="21" rx="4.5" class="upload-icon-frame"></rect>
+                <rect x="6.5" y="8" width="19" height="15" rx="2.8" fill="url(#upload-image-sky)"></rect>
+                <circle cx="21.8" cy="12" r="2.3" class="upload-icon-sun"></circle>
+                <path d="m7.8 22 5.2-5.9 4.2 4 5.8-6.6 2.5 8.5H7.8Z" fill="url(#upload-image-hills)"></path>
+              </svg>
+            </span>
             <span>Click to upload or drag &amp; drop</span>
             <span class="upload-sub">PNG, JPG, WEBP — a poster, thumbnail, or graphic</span>
           </div>
           <div class="upload-selected hidden" id="upload-selected-image">
-            <span class="upload-icon">✅</span>
+            <span class="upload-icon upload-icon-ready" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <circle cx="12" cy="12" r="9" class="upload-icon-ready-fill"></circle>
+                <path d="m8.2 12.1 2.5 2.6 5.1-5.6" class="upload-icon-ready-mark"></path>
+              </svg>
+            </span>
             <span id="image-filename"></span>
             <button class="btn-secondary" id="btn-clear-image">Change</button>
           </div>
@@ -326,30 +423,76 @@
           
           <div class="insights-inputs">
             <div class="extra-input-group">
-              <label class="extra-label" for="insights-instagram">📸 Instagram handle</label>
+              <label class="extra-label platform-label" for="insights-instagram">
+                <span class="platform-label-icon platform-instagram" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <rect x="4" y="4" width="16" height="16" rx="5" class="platform-label-outline"></rect>
+                    <circle cx="12" cy="12" r="3.6" class="platform-label-outline"></circle>
+                    <circle cx="17.2" cy="6.8" r="1.2" class="platform-label-fill"></circle>
+                  </svg>
+                </span>
+                <span>Instagram handle</span>
+              </label>
               <input type="text" id="insights-instagram" placeholder="competitor handle, e.g. nasa">
             </div>
             <div class="extra-input-group">
-              <label class="extra-label" for="insights-tiktok">🎵 TikTok handle</label>
+              <label class="extra-label platform-label" for="insights-tiktok">
+                <span class="platform-label-icon platform-tiktok" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M14.35 3.5c.46 1.87 1.72 3.29 3.62 4.04v2.73c-1.37-.04-2.58-.42-3.62-1.12v6.2c0 3.07-2.18 5.15-5.22 5.15-2.81 0-4.89-2.1-4.89-4.82 0-2.89 2.31-4.97 5.42-4.97.33 0 .66.03 1 .1v2.77a3.7 3.7 0 0 0-.97-.13c-1.47 0-2.51.93-2.51 2.18 0 1.26.98 2.2 2.3 2.2 1.42 0 2.22-.91 2.22-2.8V3.5h2.65Z"></path>
+                  </svg>
+                </span>
+                <span>TikTok handle</span>
+              </label>
               <input type="text" id="insights-tiktok" placeholder="competitor handle, e.g. nasa">
             </div>
             <div class="extra-input-group">
-              <label class="extra-label" for="insights-twitter">🐦 X / Twitter handle</label>
+              <label class="extra-label platform-label" for="insights-twitter">
+                <span class="platform-label-icon platform-x" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M18.9 4h-2.77l-3.96 4.51L8.88 4H4l5.71 7.36L4.3 20h2.77l4.26-4.86L15.1 20H20l-5.98-7.71L18.9 4Z"></path>
+                  </svg>
+                </span>
+                <span>X / Twitter handle</span>
+              </label>
               <input type="text" id="insights-twitter" placeholder="competitor handle, e.g. NASA">
             </div>
             <div class="extra-input-group">
-              <label class="extra-label" for="insights-youtube">▶️ YouTube URL / handle</label>
+              <label class="extra-label platform-label" for="insights-youtube">
+                <span class="platform-label-icon platform-youtube" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M21.2 8.2a2.9 2.9 0 0 0-2.03-2.03C17.42 5.7 12 5.7 12 5.7s-5.42 0-7.17.47A2.9 2.9 0 0 0 2.8 8.2C2.33 9.95 2.33 12 2.33 12s0 2.05.47 3.8a2.9 2.9 0 0 0 2.03 2.03c1.75.47 7.17.47 7.17.47s5.42 0 7.17-.47a2.9 2.9 0 0 0 2.03-2.03c.47-1.75.47-3.8.47-3.8s0-2.05-.47-3.8Z"></path>
+                    <path class="platform-label-fill" d="m10.2 15.28 4.5-2.61-4.5-2.61v5.22Z"></path>
+                  </svg>
+                </span>
+                <span>YouTube URL / handle</span>
+              </label>
               <input type="text" id="insights-youtube" placeholder="youtube.com/@nasa or UC… ID">
             </div>
             <div class="extra-input-group">
-              <label class="extra-label" for="insights-facebook">📘 Facebook page URL</label>
+              <label class="extra-label platform-label" for="insights-facebook">
+                <span class="platform-label-icon platform-facebook" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M13.39 20v-6.2h2.08l.31-2.42H13.4V9.83c0-.7.19-1.18 1.2-1.18h1.28V6.49c-.22-.03-.99-.09-1.88-.09-1.86 0-3.13 1.13-3.13 3.22v1.76H8.76v2.42h2.11V20h2.52Z"></path>
+                  </svg>
+                </span>
+                <span>Facebook page URL</span>
+              </label>
               <input type="text" id="insights-facebook" placeholder="competitor page URL">
             </div>
           </div>
 
           <div class="insights-actions">
             <button class="btn-primary" id="btn-load-insights">
-              <span class="btn-icon">📊</span> Load Account Intelligence
+              <span class="btn-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <rect x="4" y="10" width="3.2" height="9" rx="1.2"></rect>
+                  <rect x="10.4" y="6" width="3.2" height="13" rx="1.2"></rect>
+                  <rect x="16.8" y="3" width="3.2" height="16" rx="1.2"></rect>
+                  <path d="M3.5 20.5h17" class="btn-icon-stroke"></path>
+                </svg>
+              </span>
+              <span>Load Account Intelligence</span>
             </button>
             <p class="insights-actions-note">Tip: leave every field blank for the default SoS intelligence pass, or add one strong competitor to spot the biggest contrast quickly.</p>
           </div>
@@ -390,12 +533,24 @@
         <div class="video-upload-area" id="video-upload-area">
           <input type="file" id="video-file-input" accept="video/*" class="hidden">
           <div class="upload-prompt" id="upload-prompt">
-            <span class="upload-icon">Video</span>
+            <span class="upload-icon upload-icon-video" aria-hidden="true">
+              <svg viewBox="0 0 32 32" focusable="false">
+                <rect x="4.5" y="7" width="17.5" height="18" rx="4" class="upload-icon-frame"></rect>
+                <rect x="7.5" y="10" width="11.5" height="12" rx="2.2" class="upload-icon-video-screen"></rect>
+                <path d="m19.5 13.1 6-3.3v12.4l-6-3.3Z" class="upload-icon-video-screen"></path>
+                <path d="M9.5 7 11 4.4m5 2.6 1.5-2.6m5 2.6L24 4.4" class="upload-icon-video-detail"></path>
+              </svg>
+            </span>
             <span>Click to upload or drag and drop</span>
             <span class="upload-sub">MP4, MOV, AVI - metadata extraction runs immediately, transcription is optional.</span>
           </div>
           <div class="upload-selected hidden" id="upload-selected">
-            <span class="upload-icon">Ready</span>
+            <span class="upload-icon upload-icon-ready" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <circle cx="12" cy="12" r="9" class="upload-icon-ready-fill"></circle>
+                <path d="m8.2 12.1 2.5 2.6 5.1-5.6" class="upload-icon-ready-mark"></path>
+              </svg>
+            </span>
             <span id="upload-filename"></span>
             <button class="btn-secondary" id="btn-clear-video">Change</button>
           </div>
