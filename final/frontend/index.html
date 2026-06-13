@@ -124,9 +124,9 @@
     .mscore .meter span { display: block; height: 100%; background: var(--lav); border-radius: 3px; }
     .mock-rewrite { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 12px 14px; background: var(--lav-soft); border: 1px solid var(--lav-soft-2); border-radius: var(--r-md); font-size: 0.84rem; color: var(--lav-dark); font-weight: 600; }
     .mock-float {
-      position: absolute; right: -18px; bottom: 34px; background: var(--ink); color: #fff;
-      border-radius: var(--r-md); padding: 12px 15px; box-shadow: 0 16px 40px rgba(22,21,28,0.28);
-      font-size: 0.8rem; display: flex; align-items: center; gap: 10px; max-width: 215px;
+      margin-top: 12px; background: var(--ink); color: #fff;
+      border-radius: var(--r-md); padding: 12px 15px; box-shadow: 0 12px 28px rgba(22,21,28,0.18);
+      font-size: 0.8rem; display: inline-flex; align-items: center; gap: 10px; max-width: 100%;
     }
     .mock-float .pulse { width: 9px; height: 9px; border-radius: 50%; background: #34B872; box-shadow: 0 0 0 4px rgba(52,184,114,0.25); flex-shrink: 0; }
 
@@ -136,6 +136,37 @@
     .trust-label { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
     .trust-items { display: flex; gap: 26px; flex-wrap: wrap; align-items: center; }
     .trust-items span { font-weight: 600; color: var(--muted); font-size: 0.96rem; display: inline-flex; align-items: center; gap: 7px; }
+    .trust-icon {
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .trust-icon svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+    .trust-icon svg path {
+      fill: currentColor;
+      stroke: none;
+    }
+    .trust-icon .icon-outline {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.9;
+      vector-effect: non-scaling-stroke;
+    }
+    .trust-icon .icon-solid { fill: currentColor; stroke: none; }
+    .trust-icon .icon-cutout { fill: var(--white); stroke: none; }
+    .trust-x { color: #111111; }
+    .trust-linkedin { color: #0A66C2; }
+    .trust-facebook { color: #1877F2; }
+    .trust-instagram { color: #E1306C; }
+    .trust-tiktok { color: #111111; }
+    .trust-youtube { color: #FF0033; }
 
     /* ---- SECTION SHELL ---- */
     section.block { padding: 92px 0; }
@@ -203,7 +234,6 @@
     .nav-links.mobile-hide { }
     @media (max-width: 920px) {
       .hero-grid { grid-template-columns: 1fr; gap: 44px; }
-      .mock-float { right: 8px; }
       .features { grid-template-columns: repeat(2, 1fr); }
       .feature.wide { grid-column: span 2; grid-template-columns: 1fr; }
       .steps { grid-template-columns: 1fr; }
@@ -285,12 +315,12 @@
     <div class="wrap trust-inner">
       <span class="trust-label">Optimizes content across</span>
       <div class="trust-items">
-        <span>🐦 X / Twitter</span>
-        <span>💼 LinkedIn</span>
-        <span>📘 Facebook</span>
-        <span>📸 Instagram</span>
-        <span>🎵 TikTok</span>
-        <span>▶️ YouTube</span>
+        <span><span class="trust-icon trust-x" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M18.9 4h-2.77l-3.96 4.51L8.88 4H4l5.71 7.36L4.3 20h2.77l4.26-4.86L15.1 20H20l-5.98-7.71L18.9 4Z"></path></svg></span>X / Twitter</span>
+        <span><span class="trust-icon trust-linkedin" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="6.72" cy="6.72" r="1.72"></circle><path d="M5.2 9.7H8.2V19H5.2V9.7Zm4.7 0h2.88v1.27h.04c.4-.76 1.38-1.56 2.84-1.56 3.04 0 3.6 2 3.6 4.6V19h-3v-4.43c0-1.05-.02-2.41-1.47-2.41-1.47 0-1.7 1.15-1.7 2.33V19h-3V9.7Z"></path></svg></span>LinkedIn</span>
+        <span><span class="trust-icon trust-facebook" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M13.39 20v-6.2h2.08l.31-2.42H13.4V9.83c0-.7.19-1.18 1.2-1.18h1.28V6.49c-.22-.03-.99-.09-1.88-.09-1.86 0-3.13 1.13-3.13 3.22v1.76H8.76v2.42h2.11V20h2.52Z"></path></svg></span>Facebook</span>
+        <span><span class="trust-icon trust-instagram" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="4" y="4" width="16" height="16" rx="5" class="icon-outline"></rect><circle cx="12" cy="12" r="3.6" class="icon-outline"></circle><circle cx="17.2" cy="6.8" r="1.2" class="icon-solid"></circle></svg></span>Instagram</span>
+        <span><span class="trust-icon trust-tiktok" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M14.35 3.5c.46 1.87 1.72 3.29 3.62 4.04v2.73c-1.37-.04-2.58-.42-3.62-1.12v6.2c0 3.07-2.18 5.15-5.22 5.15-2.81 0-4.89-2.1-4.89-4.82 0-2.89 2.31-4.97 5.42-4.97.33 0 .66.03 1 .1v2.77a3.7 3.7 0 0 0-.97-.13c-1.47 0-2.51.93-2.51 2.18 0 1.26.98 2.2 2.3 2.2 1.42 0 2.22-.91 2.22-2.8V3.5h2.65Z"></path></svg></span>TikTok</span>
+        <span><span class="trust-icon trust-youtube" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M21.8 8.6a3.25 3.25 0 0 0-2.29-2.3C17.55 5.78 12 5.78 12 5.78s-5.55 0-7.51.52A3.25 3.25 0 0 0 2.2 8.6 34.4 34.4 0 0 0 1.67 12c0 1.16.18 2.3.53 3.4a3.25 3.25 0 0 0 2.29 2.3c1.96.52 7.51.52 7.51.52s5.55 0 7.51-.52a3.25 3.25 0 0 0 2.29-2.3c.35-1.1.53-2.24.53-3.4s-.18-2.3-.53-3.4Z"></path><path d="m10.15 15.35 5.1-3.35-5.1-3.35v6.7Z" class="icon-cutout"></path></svg></span>YouTube</span>
       </div>
     </div>
   </div>

@@ -1595,7 +1595,7 @@ function renderInsights(data, opts = {}) {
       return `
         <div class="growth-row${hasInsight ? ' clickable' : ''}" data-platform="${pid}">
           <div class="growth-head">
-            <span class="growth-platform">${p.icon} ${p.name}</span>
+            <span class="growth-platform">${renderPlatformIcon(pid, 'growth-platform-icon')}<span>${p.name}</span></span>
             ${hasInsight ? `
               <button class="info-icon" data-platform="${pid}" title="View ${p.name} insights" aria-label="View ${p.name} insights">i</button>
               <span class="growth-row-cta">View insights →</span>` : ''}

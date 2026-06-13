@@ -2931,14 +2931,48 @@ html[data-active-tab="campaign"] .tab-btn[data-tab="campaign"] .tab-btn-icon {
 .growth-row.no-data { opacity: 0.6; }
 .growth-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
 .growth-platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--dark);
+}
+.growth-platform-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.growth-platform-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.growth-platform-icon svg path {
+  fill: currentColor;
+  stroke: none;
+}
+.growth-platform-icon .platform-icon-solid {
+  fill: currentColor;
+  stroke: none;
+}
+.growth-platform-icon .platform-icon-outline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  vector-effect: non-scaling-stroke;
+}
+.growth-platform-icon .platform-icon-cutout {
+  fill: var(--white);
+  stroke: none;
 }
 .growth-source {
   font-size: 0.72rem;
