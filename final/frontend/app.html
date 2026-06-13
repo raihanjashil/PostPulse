@@ -281,39 +281,79 @@
     <!-- ======== TAB: ACCOUNT INTELLIGENCE ======== -->
     <div id="tab-insights" class="tab-pane active">
       <section class="insights-section">
-        <div class="results-header">
-          <h2>Account Intelligence</h2>
-          <p class="results-sub">Real engagement patterns decoded from Stars of Science accounts — or benchmark a competitor</p>
+        <div class="insights-hero">
+          <div class="insights-hero-copy">
+            <span class="insights-kicker">Signal Map</span>
+            <div class="results-header insights-header">
+              <h2>Account Intelligence</h2>
+              <p class="results-sub">Real engagement patterns decoded from Stars of Science accounts — or benchmark a competitor with a cleaner, faster compare flow.</p>
+            </div>
+            <div class="insights-pill-row">
+              <span class="insights-pill">Default SoS baseline</span>
+              <span class="insights-pill">Cross-platform competitor compare</span>
+              <span class="insights-pill">AI reads growth vs. noise</span>
+            </div>
+          </div>
+          <aside class="insights-hero-side" aria-label="Account intelligence highlights">
+            <div class="insights-stat-card">
+              <span class="insights-stat-label">Default mode</span>
+              <strong>Analyze Stars of Science first</strong>
+              <p>Leave every field blank to get the house-account benchmark before you compare anyone else.</p>
+            </div>
+            <div class="insights-stat-card alt">
+              <span class="insights-stat-label">Best use</span>
+              <strong>One competitor at a time</strong>
+              <p>Start focused for a clearer read, then widen the comparison once a pattern stands out.</p>
+            </div>
+          </aside>
         </div>
-        <div class="competitor-bench-header">
-          <span class="competitor-bench-title">🏁 Competitor Benchmarking</span>
-          <span class="competitor-bench-sub">Compare any account against Stars of Science — leave fields blank to analyze the SoS defaults</span>
+
+        <div class="insights-workbench">
+          <div class="competitor-bench-header">
+            <span class="competitor-bench-title">🏁 Competitor Benchmarking</span>
+            <span class="competitor-bench-sub">Compare any account against Stars of Science — leave fields blank to analyze the SoS defaults.</span>
+          </div>
+          <div class="insights-note-grid" aria-hidden="true">
+            <div class="insights-note-card">
+              <strong>Flexible inputs</strong>
+              Mix handles and channel URLs across Instagram, TikTok, X, YouTube, and Facebook.
+            </div>
+            <div class="insights-note-card">
+              <strong>Pattern-first analysis</strong>
+              The output highlights standout formats, engagement quality, and where momentum is real vs. inflated.
+            </div>
+          </div>
+          
+          <div class="insights-inputs">
+            <div class="extra-input-group">
+              <label class="extra-label" for="insights-instagram">📸 Instagram handle</label>
+              <input type="text" id="insights-instagram" placeholder="competitor handle, e.g. nasa">
+            </div>
+            <div class="extra-input-group">
+              <label class="extra-label" for="insights-tiktok">🎵 TikTok handle</label>
+              <input type="text" id="insights-tiktok" placeholder="competitor handle, e.g. nasa">
+            </div>
+            <div class="extra-input-group">
+              <label class="extra-label" for="insights-twitter">🐦 X / Twitter handle</label>
+              <input type="text" id="insights-twitter" placeholder="competitor handle, e.g. NASA">
+            </div>
+            <div class="extra-input-group">
+              <label class="extra-label" for="insights-youtube">▶️ YouTube URL / handle</label>
+              <input type="text" id="insights-youtube" placeholder="youtube.com/@nasa or UC… ID">
+            </div>
+            <div class="extra-input-group">
+              <label class="extra-label" for="insights-facebook">📘 Facebook page URL</label>
+              <input type="text" id="insights-facebook" placeholder="competitor page URL">
+            </div>
+          </div>
+
+          <div class="insights-actions">
+            <button class="btn-primary" id="btn-load-insights">
+              <span class="btn-icon">📊</span> Load Account Intelligence
+            </button>
+            <p class="insights-actions-note">Tip: leave every field blank for the default SoS intelligence pass, or add one strong competitor to spot the biggest contrast quickly.</p>
+          </div>
         </div>
-        <div class="insights-inputs">
-          <div class="extra-input-group">
-            <label class="extra-label" for="insights-instagram">📸 Instagram handle</label>
-            <input type="text" id="insights-instagram" placeholder="competitor handle, e.g. nasa">
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="insights-tiktok">🎵 TikTok handle</label>
-            <input type="text" id="insights-tiktok" placeholder="competitor handle, e.g. nasa">
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="insights-twitter">🐦 X / Twitter handle</label>
-            <input type="text" id="insights-twitter" placeholder="competitor handle, e.g. NASA">
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="insights-youtube">▶️ YouTube URL / handle</label>
-            <input type="text" id="insights-youtube" placeholder="youtube.com/@nasa or UC… ID">
-          </div>
-          <div class="extra-input-group">
-            <label class="extra-label" for="insights-facebook">📘 Facebook page URL</label>
-            <input type="text" id="insights-facebook" placeholder="competitor page URL">
-          </div>
-        </div>
-        <button class="btn-primary" id="btn-load-insights">
-          <span class="btn-icon">📊</span> Load Account Intelligence
-        </button>
         <div id="insights-mock-banner" class="mock-banner hidden">
           ⚠️ <strong>Demo data</strong> — the backend is unreachable, so these numbers are
           <strong>fabricated</strong>, not real analytics. <span id="insights-mock-reason"></span>

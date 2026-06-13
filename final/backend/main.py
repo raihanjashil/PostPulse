@@ -401,7 +401,7 @@ async def chat_edit_video_endpoint(
     if not isinstance(current_edit_history, list):
         raise HTTPException(status_code=400, detail="current_edit_history_json must decode to a list.")
 
-    resolved_video_id, source_path = await _resolve_source_video(upload, video_id)
+    requested_video_id = (video_id or "").strip()
     metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
     effective_target_platform = (
         target_platform
@@ -427,11 +427,12 @@ async def chat_edit_video_endpoint(
             "conversation_only": bool(plan.get("conversation_only")),
             "question": plan.get("question") or "What timestamp should I apply this edit to?",
             "assistant_response": plan.get("assistant_response") or "I need one more detail before I can apply that edit.",
-            "video_id": resolved_video_id,
+            "video_id": requested_video_id,
             "current_edit_history": current_edit_history,
-            "version_history": _build_version_history(resolved_video_id),
+            "version_history": _build_version_history(requested_video_id) if requested_video_id else ["Original Video"],
         }
 
+    resolved_video_id, source_path = await _resolve_source_video(upload, requested_video_id or None)
     new_commands = list(plan.get("edit_commands") or [])
     combined_history = current_edit_history + new_commands
     for command in reversed(combined_history):
