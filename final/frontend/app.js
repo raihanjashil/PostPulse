@@ -1343,8 +1343,26 @@ function buildMusicMatchState() {
     tracks: [],
     warnings: [],
     selectedTrackId: '',
+    selectedTrackData: null,
+    previewTrackId: '',
+    previewVolume: 1.0,
+    previewPlaying: false,
     jamendoConfigured: false,
     statusMessage: '',
+    // Audio analysis
+    audioDetected: false,
+    speechDetected: false,
+    musicDetected: null,
+    audioDuration: 0,
+    audioWarnings: [],
+    // Music mixing
+    audioMode: 'mix_background_music',
+    musicVolume: 0.18,
+    originalVolume: 1.0,
+    fadeInSeconds: 1.0,
+    fadeOutSeconds: 1.5,
+    addingMusic: false,
+    addMusicResult: null,
   };
 }
 
@@ -1852,7 +1870,6 @@ function renderVideoResults(data) {
       }).join('') || '<div class="video-analysis-empty">No edit suggestions were returned.</div>'}
     </div>
     ${renderEditStudioSection()}
-    ${renderMusicMatchSection()}
   `;
 
   bindEditStudioEvents();
@@ -1979,67 +1996,53 @@ function renderEditStudioSection() {
         <span class="edit-studio-status">${studioStatus}</span>
       </div>
 
-      <div class="edit-studio-theater ${hasFirstRender ? 'edit-studio-theater-with-sidebar' : ''}">
-        ${hasFirstRender ? `
-          <aside class="edit-studio-sidebar">
-            <div class="edit-studio-card">
-              <div class="video-card-label">Applied Edits</div>
-              <div class="edit-history-list">
-                ${appliedEditsMarkup}
-              </div>
-            </div>
+      <div class="edit-studio-grid">
+        ${assistantPanelMarkup}
 
-            <div class="edit-studio-card">
-              <div class="video-card-label">Version History</div>
-              <div class="version-history-list">
-                ${versionMarkup}
-              </div>
-            </div>
-          </aside>
-        ` : ''}
-        <div class="edit-studio-theater-main">
+        <section class="edit-studio-panel edit-studio-video-card">
           <div class="edit-studio-theater-frame">
             ${previewMarkup}
           </div>
+
           <div class="edit-studio-theater-meta">
             <div class="edit-version-label">Version: ${escapeHtml(editStudioState.currentVersion)}</div>
             ${editStudioState.downloadUrl
               ? `<a class="edit-download-link" href="${editStudioState.downloadUrl}" target="_blank" rel="noopener">Download ${escapeHtml(editStudioState.currentVersion)}</a>`
               : ''}
           </div>
-        </div>
-        ${hasFirstRender ? assistantPanelMarkup : ''}
-      </div>
 
-      ${hasFirstRender ? `
-        <div class="edit-studio-grid">
-          <div class="edit-studio-panel edit-studio-preview-panel">
-            <div class="timeline-placeholder" data-duration="${duration}">
-              <div class="timeline-ruler">
-                <span>00:00</span>
-                <span>${formatVideoTimestamp(duration / 2)}</span>
-                <span>${timelineEndLabel}</span>
-              </div>
-              <div class="timeline-track" id="studio-timeline-track">
-                <span class="timeline-clip"></span>
-                <span class="timeline-selected-range" id="timeline-selected-range"></span>
-                <span class="timeline-handle timeline-start-handle" id="timeline-start-handle"></span>
-                <span class="timeline-handle timeline-end-handle" id="timeline-end-handle"></span>
-              </div>
-              <div class="timeline-controls-row">
-                <span id="timeline-selection-label">Selected: 00:04 - 00:08</span>
-                <button class="studio-tool-button timeline-cut-button" type="button" data-studio-action="cut">Cut selected range</button>
+          ${hasFirstRender ? `
+            <div class="edit-studio-panel edit-studio-preview-panel">
+              <div class="timeline-placeholder" data-duration="${duration}">
+                <div class="timeline-ruler">
+                  <span>00:00</span>
+                  <span>${formatVideoTimestamp(duration / 2)}</span>
+                  <span>${timelineEndLabel}</span>
+                </div>
+                <div class="timeline-track" id="studio-timeline-track">
+                  <span class="timeline-clip"></span>
+                  <span class="timeline-selected-range" id="timeline-selected-range"></span>
+                  <span class="timeline-handle timeline-start-handle" id="timeline-start-handle"></span>
+                  <span class="timeline-handle timeline-end-handle" id="timeline-end-handle"></span>
+                </div>
+                <div class="timeline-controls-row">
+                  <span id="timeline-selection-label">Selected: 00:04 - 00:08</span>
+                  <button class="studio-tool-button timeline-cut-button" type="button" data-studio-action="cut">Cut selected range</button>
+                </div>
               </div>
             </div>
+          ` : `
+            <div class="edit-studio-start">
+              <button class="btn-primary" id="btn-apply-auto-edit" type="button" data-studio-primary-action="auto-edit" ${studioButtonDisabled ? 'disabled' : ''}>${buttonLabel}</button>
+              <div class="edit-coming-soon-label">${helperLabel}</div>
+            </div>
+          `}
+        </section>
 
-          </div>
-        </div>
-      ` : `
-        <div class="edit-studio-start">
-          <button class="btn-primary" id="btn-send-edit-studio" type="button" data-studio-primary-action="auto-edit" ${studioButtonDisabled ? 'disabled' : ''}>${buttonLabel}</button>
-          <div class="edit-coming-soon-label">${helperLabel}</div>
-        </div>
-      `}
+        <section class="edit-studio-panel edit-studio-music-card">
+          ${renderMusicMatchSection()}
+        </section>
+      </div>
     </section>
   `;
 }
@@ -2056,36 +2059,172 @@ function renderMusicMatchSection() {
     ['motivational', 'Motivational'],
   ];
   const canFindMusic = Boolean(state.backendLive && lastVideoAnalysisResult && !musicMatchState.busy);
+  const canAddMusic = Boolean(
+    canFindMusic && 
+    musicMatchState.selectedTrackId && 
+    editStudioState.videoId &&
+    !musicMatchState.addingMusic
+  );
   const confidenceLabel = musicMatchState.confidence == null
     ? 'Not analyzed yet'
     : `${Math.round(Number(musicMatchState.confidence || 0) * 100)}%`;
-  const warningMarkup = musicMatchState.warnings.length
-    ? `<div class="music-warning-list">${musicMatchState.warnings.map(warning => `<div>${escapeHtml(warning)}</div>`).join('')}</div>`
+  
+  // Audio status section
+  const audioStatusHtml = musicMatchState.audioDetected !== undefined
+    ? `
+      <div class="audio-status-section">
+        <div class="audio-status-header">Audio Analysis</div>
+        <div class="audio-status-grid">
+          <div class="audio-status-item">
+            <span class="audio-status-label">Audio Detected:</span>
+            <span class="audio-status-value ${musicMatchState.audioDetected ? 'yes' : 'no'}">
+              ${musicMatchState.audioDetected ? '✓ Yes' : '✗ No'}
+            </span>
+          </div>
+          <div class="audio-status-item">
+            <span class="audio-status-label">Speech Detected:</span>
+            <span class="audio-status-value ${musicMatchState.speechDetected ? 'yes' : 'no'}">
+              ${musicMatchState.speechDetected ? '✓ Yes' : '✗ No'}
+            </span>
+          </div>
+          ${musicMatchState.audioDuration > 0 ? `
+            <div class="audio-status-item">
+              <span class="audio-status-label">Duration:</span>
+              <span class="audio-status-value">${formatVideoTimestamp(musicMatchState.audioDuration)}</span>
+            </div>
+          ` : ''}
+        </div>
+        ${musicMatchState.audioWarnings.length > 0 ? `
+          <details class="warning-panel audio-warning-panel">
+            <summary>Audio analysis warnings</summary>
+            <div class="warning-list">
+              ${musicMatchState.audioWarnings.map(w => `<div class="warning-item">⚠️ ${formatWarning(w)}</div>`).join('')}
+            </div>
+          </details>
+        ` : ''}
+      </div>
+    `
     : '';
+  
+  // Audio mode selector
+  const audioModeSelectorHtml = musicMatchState.selectedTrackId
+    ? `
+      <div class="audio-mode-selector">
+        <div class="audio-mode-header">How to add music?</div>
+        
+        <div class="audio-mode-option">
+          <input type="radio" name="audio-mode" value="keep_original" id="mode-keep" ${musicMatchState.audioMode === 'keep_original' ? 'checked' : ''}>
+          <label for="mode-keep">
+            <span class="mode-title">Keep Original Audio</span>
+            <span class="mode-desc">No music added. Original audio preserved.</span>
+          </label>
+        </div>
+        
+        <div class="audio-mode-option">
+          <input type="radio" name="audio-mode" value="mix_background_music" id="mode-mix" ${musicMatchState.audioMode === 'mix_background_music' ? 'checked' : ''}>
+          <label for="mode-mix">
+            <span class="mode-title">Add Background Music</span>
+            <span class="mode-desc">Mix selected music underneath original audio${musicMatchState.speechDetected ? ' (music will be at low volume due to detected speech)' : ''}.</span>
+          </label>
+          <div class="mix-controls">
+            <div class="control-group">
+              <label for="music-volume">Music Volume:</label>
+              <input type="range" id="music-volume" min="0" max="1" step="0.05" value="${musicMatchState.musicVolume}">
+              <span id="music-volume-display">${musicMatchState.musicVolume.toFixed(2)}</span>
+            </div>
+            <div class="control-group">
+              <label for="original-volume">Original Audio Volume:</label>
+              <input type="range" id="original-volume" min="0" max="1" step="0.05" value="${musicMatchState.originalVolume}">
+              <span id="original-volume-display">${musicMatchState.originalVolume.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="audio-mode-option">
+          <input type="radio" name="audio-mode" value="replace_audio" id="mode-replace" ${musicMatchState.audioMode === 'replace_audio' ? 'checked' : ''}>
+          <label for="mode-replace">
+            <span class="mode-title">Replace Original Audio</span>
+            <span class="mode-desc">Remove original audio, use selected music only.</span>
+          </label>
+        </div>
+      </div>
+    `
+    : '';
+
+  const formatWarning = warning => {
+    const normalized = String(warning || '')
+      .replace(/FFmpeg\/ffprobe not installed/gi, 'Audio analysis unavailable. Install FFmpeg and ensure ffprobe is available in PATH.');
+    return escapeHtml(normalized);
+  };
+
+  const warningMarkup = musicMatchState.warnings.length
+    ? `<details class="warning-panel">
+         <summary>Audio warnings</summary>
+         <div class="music-warning-list">${musicMatchState.warnings.map(warning => `<div>⚠️ ${formatWarning(warning)}</div>`).join('')}</div>
+       </details>`
+    : '';
+  
   const trackMarkup = musicMatchState.tracks.length
     ? musicMatchState.tracks.map(track => {
       const isSelected = String(track.id) === String(musicMatchState.selectedTrackId);
       return `
         <div class="music-track-card ${isSelected ? 'music-track-selected' : ''}">
-          ${track.image ? `<img class="music-track-image" src="${escapeHtml(track.image)}" alt="">` : '<div class="music-track-image music-track-image-empty">Music</div>'}
+          ${track.image ? `<img class="music-track-image" src="${escapeHtml(track.image)}" alt="">` : '<div class="music-track-image music-track-image-empty">🎵</div>'}
           <div class="music-track-body">
             <div class="music-track-title">${escapeHtml(track.title || 'Untitled track')}</div>
             <div class="music-track-artist">${escapeHtml(track.artist || 'Unknown artist')}</div>
             <div class="music-track-meta">
               <span>${formatVideoTimestamp(track.duration || 0)}</span>
               ${track.album ? `<span>${escapeHtml(track.album)}</span>` : ''}
-              ${track.license ? `<span>${escapeHtml(track.license)}</span>` : ''}
             </div>
             <div class="music-track-actions">
-              <button class="studio-tool-button music-preview-button" type="button" data-preview-audio="${escapeHtml(track.preview_audio_url || '')}" ${track.preview_audio_url ? '' : 'disabled'}>Preview</button>
-              <button class="studio-tool-button" type="button" data-select-track="${escapeHtml(track.id || '')}">${isSelected ? 'Selected' : 'Select'}</button>
-              ${track.download_url ? `<a class="edit-download-link" href="${escapeHtml(track.download_url)}" target="_blank" rel="noopener">Download</a>` : ''}
+              <button class="studio-tool-button music-preview-button" type="button" data-preview-audio="${escapeHtml(track.preview_audio_url || '')}" data-preview-track="${escapeHtml(track.id || '')}" ${track.preview_audio_url ? '' : 'disabled'}>🎧 Preview</button>
+              <button class="studio-tool-button music-select-button ${isSelected ? 'selected' : ''}" type="button" data-select-track="${escapeHtml(track.id || '')}">${isSelected ? '✓ Selected' : 'Select'}</button>
             </div>
+            ${musicMatchState.previewTrackId === String(track.id) ? `
+              <div class="music-preview-panel" data-preview-container="${escapeHtml(track.id || '')}">
+                <div class="music-preview-controls">
+                  <button class="studio-tool-button preview-control-play" type="button" data-preview-play="${escapeHtml(track.id || '')}">${musicMatchState.previewPlaying ? 'Pause' : 'Play'}</button>
+                  <button class="studio-tool-button preview-control-stop" type="button" data-preview-stop="${escapeHtml(track.id || '')}">Stop</button>
+                  <div class="preview-progress-row">
+                    <div class="preview-progress-bar" data-preview-progress="${escapeHtml(track.id || '')}"><span></span></div>
+                    <div class="preview-time"><span data-preview-current="${escapeHtml(track.id || '')}">00:00</span> / <span data-preview-duration="${escapeHtml(track.id || '')}">00:00</span></div>
+                  </div>
+                  <label class="preview-volume-label">
+                    Volume
+                    <input class="preview-volume-slider" type="range" min="0" max="1" step="0.01" value="${musicMatchState.previewVolume.toFixed(2)}" data-preview-volume="${escapeHtml(track.id || '')}">
+                  </label>
+                </div>
+              </div>
+            ` : ''}
           </div>
         </div>
       `;
     }).join('')
     : `<div class="music-empty-state">${musicMatchState.searched ? 'No music recommendations returned yet.' : 'Choose a mood or let AI detect one, then find matching music.'}</div>`;
+
+  // Add Music result
+  const addMusicResultHtml = musicMatchState.addMusicResult
+    ? `<div class="add-music-result ${musicMatchState.addMusicResult.success ? 'success' : 'error'}">
+        <div class="result-header">${musicMatchState.addMusicResult.success ? '✓ Music Added Successfully!' : '✗ Error Adding Music'}</div>
+        ${musicMatchState.addMusicResult.success ? `
+          <div class="result-content">
+            <p>Added "${escapeHtml(musicMatchState.addMusicResult.track_title)}" by ${escapeHtml(musicMatchState.addMusicResult.track_artist)}</p>
+            <p>Mode: ${musicMatchState.addMusicResult.audio_mode.replace(/_/g, ' ')}</p>
+            <p>File: ${escapeHtml(musicMatchState.addMusicResult.output_filename)}</p>
+          </div>
+        ` : `
+          <div class="result-content">
+            ${(musicMatchState.addMusicResult.warnings || []).map(w => `<p>⚠️ ${escapeHtml(w)}</p>`).join('')}
+          </div>
+        `}
+        ${musicMatchState.addMusicResult.warnings && musicMatchState.addMusicResult.warnings.length > 0 ? `
+          <div class="result-warnings">
+            ${musicMatchState.addMusicResult.warnings.map(w => `<div class="warning-item">⚠️ ${escapeHtml(w)}</div>`).join('')}
+          </div>
+        ` : ''}
+      </div>`
+    : '';
 
   return `
     <section class="music-match-shell" aria-label="AI Music Match">
@@ -2095,7 +2234,7 @@ function renderMusicMatchSection() {
           <h2>AI Music Match</h2>
           <p class="results-sub">Match background tracks to the transcript mood, platform, and video pacing.</p>
         </div>
-        <span class="music-status-pill">${musicMatchState.busy ? 'Finding tracks' : musicMatchState.detectedMood ? `Mood: ${escapeHtml(musicMatchState.detectedMood)}` : 'Ready'}</span>
+        <span class="music-status-pill">${musicMatchState.busy ? 'Finding tracks' : musicMatchState.addingMusic ? 'Adding music...' : musicMatchState.detectedMood ? `Mood: ${escapeHtml(musicMatchState.detectedMood)}` : 'Ready'}</span>
       </div>
 
       <div class="music-match-controls">
@@ -2109,18 +2248,18 @@ function renderMusicMatchSection() {
 
         <div class="music-action-panel">
           <label class="studio-field">
-            <span>Manual mood</span>
+            <span>Manual mood override</span>
             <select id="music-mood-select">
               <option value="">Auto detect mood</option>
               ${moods.map(([value, label]) => `<option value="${value}" ${musicMatchState.selectedMood === value ? 'selected' : ''}>${label}</option>`).join('')}
             </select>
           </label>
-          <button class="btn-primary" id="btn-find-music" type="button" ${canFindMusic ? '' : 'disabled'}>${musicMatchState.busy ? 'Finding...' : 'Find Music'}</button>
-          <button class="studio-tool-button" id="btn-add-music" type="button" disabled>Add Music To Video</button>
-          <div class="edit-coming-soon-label">Music mixing coming soon.</div>
+          <button class="btn-primary" id="btn-find-music" type="button" ${canFindMusic ? '' : 'disabled'}>${musicMatchState.busy ? '⏳ Finding...' : '🎵 Find Music'}</button>
+          <button class="btn-primary" id="btn-add-music" type="button" ${canAddMusic ? '' : 'disabled'} style="background-color: #10b981;">${musicMatchState.addingMusic ? '⏳ Adding music...' : '➕ Add Music To Video'}</button>
         </div>
       </div>
 
+      ${audioStatusHtml}
       ${warningMarkup}
       ${musicMatchState.statusMessage ? `<div class="music-status-message">${escapeHtml(musicMatchState.statusMessage)}</div>` : ''}
 
@@ -2128,10 +2267,11 @@ function renderMusicMatchSection() {
         ${trackMarkup}
       </div>
 
+      ${audioModeSelectorHtml}
+      ${addMusicResultHtml}
+
       <div class="music-future-notes">
-        <!-- FUTURE: FFmpeg music mixing -->
-        <!-- FUTURE: Automatic volume balancing -->
-        <!-- FUTURE: AI-generated music providers such as Lyria, Mubert, etc. -->
+        <!-- Music mixing integration complete -->
       </div>
     </section>
   `;
@@ -2143,22 +2283,172 @@ function bindMusicMatchEvents() {
   });
 
   $('btn-find-music')?.addEventListener('click', onFindMusic);
+  $('btn-add-music')?.addEventListener('click', onAddMusicToVideo);
 
+  // Track selection
   document.querySelectorAll('[data-select-track]').forEach(button => {
     button.addEventListener('click', () => {
-      musicMatchState.selectedTrackId = button.dataset.selectTrack || '';
+      const trackId = button.dataset.selectTrack || '';
+      const track = musicMatchState.tracks.find(t => String(t.id) === String(trackId));
+      if (track) {
+        musicMatchState.selectedTrackId = trackId;
+        musicMatchState.selectedTrackData = track;
+        musicMatchState.addMusicResult = null;
+        // Log for debugging
+        console.log('[Music Match] Track selected:', track.title, 'ID:', trackId);
+      }
       renderVideoResults(lastVideoAnalysisResult);
     });
   });
 
+  // Audio preview - single shared player
+  const audioPreviewElement = createOrGetAudioPreview();
+  
   document.querySelectorAll('[data-preview-audio]').forEach(button => {
     button.addEventListener('click', () => {
       const audioUrl = button.dataset.previewAudio || '';
-      if (!audioUrl) return;
-      const audio = new Audio(audioUrl);
-      audio.play().catch(() => showToast('Audio preview could not be played by the browser.', 'warn'));
+      const trackId = button.dataset.previewTrack || '';
+      if (!audioUrl) {
+        showToast('No preview URL available for this track.', 'warn');
+        return;
+      }
+      
+      musicMatchState.previewTrackId = String(trackId);
+      musicMatchState.previewPlaying = true;
+      musicMatchState.previewVolume = Number(musicMatchState.previewVolume) || 1.0;
+      
+      // Stop any currently playing preview
+      if (audioPreviewElement.src && audioPreviewElement.src !== audioUrl) {
+        audioPreviewElement.pause();
+      }
+      
+      audioPreviewElement.src = audioUrl;
+      audioPreviewElement.volume = musicMatchState.previewVolume;
+      audioPreviewElement.currentTime = 0;
+      audioPreviewElement.play().catch(err => {
+        console.error('[Music Match] Preview playback failed:', err);
+        showToast('Audio preview could not be played. Check browser audio permissions.', 'warn');
+        musicMatchState.previewPlaying = false;
+      });
+      
+      renderVideoResults(lastVideoAnalysisResult);
+      
+      console.log('[Music Match] Playing preview:', audioUrl);
     });
   });
+
+  document.querySelectorAll('[data-preview-play]').forEach(button => {
+    button.addEventListener('click', () => {
+      const trackId = button.dataset.previewPlay || '';
+      if (musicMatchState.previewTrackId !== String(trackId)) return;
+      if (audioPreviewElement.paused) {
+        audioPreviewElement.play();
+        musicMatchState.previewPlaying = true;
+      } else {
+        audioPreviewElement.pause();
+        musicMatchState.previewPlaying = false;
+      }
+      renderVideoResults(lastVideoAnalysisResult);
+    });
+  });
+
+  document.querySelectorAll('[data-preview-stop]').forEach(button => {
+    button.addEventListener('click', () => {
+      const trackId = button.dataset.previewStop || '';
+      if (musicMatchState.previewTrackId !== String(trackId)) return;
+      audioPreviewElement.pause();
+      audioPreviewElement.currentTime = 0;
+      musicMatchState.previewPlaying = false;
+      renderVideoResults(lastVideoAnalysisResult);
+    });
+  });
+
+  document.querySelectorAll('[data-preview-volume]').forEach(input => {
+    input.addEventListener('input', (event) => {
+      const trackId = input.dataset.previewVolume || '';
+      if (musicMatchState.previewTrackId !== String(trackId)) return;
+      const value = parseFloat(event.target.value);
+      musicMatchState.previewVolume = Number.isNaN(value) ? 1.0 : value;
+      audioPreviewElement.volume = musicMatchState.previewVolume;
+      renderVideoResults(lastVideoAnalysisResult);
+    });
+  });
+
+  if (!audioPreviewElement._previewListenersAdded) {
+    audioPreviewElement.addEventListener('timeupdate', () => {
+      const progress = audioPreviewElement.duration ? (audioPreviewElement.currentTime / audioPreviewElement.duration) * 100 : 0;
+      document.querySelectorAll(`[data-preview-progress="${musicMatchState.previewTrackId}"] span`).forEach(bar => {
+        bar.style.width = `${progress}%`;
+      });
+      document.querySelectorAll(`[data-preview-current="${musicMatchState.previewTrackId}"]`).forEach(el => {
+        el.textContent = formatVideoTimestamp(audioPreviewElement.currentTime);
+      });
+      document.querySelectorAll(`[data-preview-duration="${musicMatchState.previewTrackId}"]`).forEach(el => {
+        el.textContent = formatVideoTimestamp(audioPreviewElement.duration || 0);
+      });
+    });
+
+    audioPreviewElement.addEventListener('ended', () => {
+      musicMatchState.previewPlaying = false;
+      renderVideoResults(lastVideoAnalysisResult);
+    });
+
+    audioPreviewElement._previewListenersAdded = true;
+  }
+
+  const previewContainer = document.querySelector(`[data-preview-container="${musicMatchState.previewTrackId}"]`);
+  if (previewContainer) {
+    previewContainer.appendChild(audioPreviewElement);
+  }
+
+  // Audio mode radio buttons
+  document.querySelectorAll('input[name="audio-mode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      musicMatchState.audioMode = e.target.value;
+      console.log('[Music Match] Audio mode changed to:', musicMatchState.audioMode);
+      renderVideoResults(lastVideoAnalysisResult);
+    });
+  });
+
+  // Volume sliders
+  const musicVolumeSlider = $('music-volume');
+  const musicVolumeDisplay = $('music-volume-display');
+  if (musicVolumeSlider) {
+    musicVolumeSlider.addEventListener('input', (e) => {
+      musicMatchState.musicVolume = parseFloat(e.target.value);
+      if (musicVolumeDisplay) {
+        musicVolumeDisplay.textContent = musicMatchState.musicVolume.toFixed(2);
+      }
+      console.log('[Music Match] Music volume set to:', musicMatchState.musicVolume);
+    });
+  }
+
+  const originalVolumeSlider = $('original-volume');
+  const originalVolumeDisplay = $('original-volume-display');
+  if (originalVolumeSlider) {
+    originalVolumeSlider.addEventListener('input', (e) => {
+      musicMatchState.originalVolume = parseFloat(e.target.value);
+      if (originalVolumeDisplay) {
+        originalVolumeDisplay.textContent = musicMatchState.originalVolume.toFixed(2);
+      }
+      console.log('[Music Match] Original volume set to:', musicMatchState.originalVolume);
+    });
+  }
+}
+
+function createOrGetAudioPreview() {
+  let audioEl = $('music-preview-player');
+  if (!audioEl) {
+    audioEl = document.createElement('audio');
+    audioEl.id = 'music-preview-player';
+    audioEl.controls = false;
+    audioEl.style.display = 'none';
+    audioEl.style.width = '0';
+    audioEl.style.height = '0';
+    audioEl.style.visibility = 'hidden';
+    document.body.appendChild(audioEl);
+  }
+  return audioEl;
 }
 
 async function onFindMusic() {
@@ -2210,6 +2500,12 @@ async function onFindMusic() {
         ? 'Music recommendations loaded.'
         : 'Jamendo API key not configured.',
     };
+    
+    // Analyze audio after getting recommendations
+    if (editStudioState.videoId && lastVideoAnalysisResult.transcript) {
+      await analyzeVideoAudio();
+    }
+    
     renderVideoResults(lastVideoAnalysisResult);
     showToast(data.jamendo_configured ? 'Music recommendations loaded.' : 'Jamendo API key not configured.', data.jamendo_configured ? 'success' : 'warn');
   } catch (error) {
@@ -2224,6 +2520,150 @@ async function onFindMusic() {
     showToast('Music matching failed. Check the backend logs.', 'warn');
   }
 }
+
+async function analyzeVideoAudio() {
+  if (!state.backendLive || !editStudioState.videoId) {
+    console.log('[Audio Analysis] Skipping audio analysis - no backend or video ID');
+    return;
+  }
+
+  try {
+    console.log('[Audio Analysis] Starting for video:', editStudioState.videoId);
+    const payload = {
+      video_id: editStudioState.videoId,
+      transcript: lastVideoAnalysisResult?.transcript || {},
+    };
+    
+    const res = await apiFetch('/music/analyze-audio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!res.ok) {
+      console.warn('[Audio Analysis] API error:', res.status);
+      return;
+    }
+    
+    const data = await res.json();
+    console.log('[Audio Analysis] Results:', data);
+    
+    musicMatchState = {
+      ...musicMatchState,
+      audioDetected: Boolean(data.audio_detected),
+      speechDetected: Boolean(data.speech_detected),
+      musicDetected: data.music_detected,
+      audioDuration: Number(data.audio_duration) || 0,
+      audioWarnings: Array.isArray(data.warnings) ? data.warnings : [],
+    };
+    
+    console.log('[Audio Analysis] Updated state - Audio detected:', musicMatchState.audioDetected, 'Speech detected:', musicMatchState.speechDetected);
+  } catch (error) {
+    console.error('[Audio Analysis] Failed:', error?.message);
+    musicMatchState.audioWarnings.push(`Audio analysis error: ${error?.message || 'Unknown'}`);
+  }
+}
+
+async function onAddMusicToVideo() {
+  if (!editStudioState.videoId) {
+    showToast('Apply Auto Edit first to generate a video version.', 'warn');
+    return;
+  }
+  if (!musicMatchState.selectedTrackId || !musicMatchState.selectedTrackData) {
+    showToast('Select a music track first.', 'warn');
+    return;
+  }
+  if (!state.backendLive) {
+    showToast('Music mixing requires the backend to be live.', 'warn');
+    return;
+  }
+
+  musicMatchState.addingMusic = true;
+  musicMatchState.statusMessage = 'Adding music to video...';
+  musicMatchState.addMusicResult = null;
+  renderVideoResults(lastVideoAnalysisResult);
+
+  try {
+    const track = musicMatchState.selectedTrackData;
+    const payload = {
+      video_id: editStudioState.videoId,
+      track: {
+        id: track.id,
+        title: track.title,
+        artist: track.artist,
+        preview_audio_url: track.preview_audio_url,
+        download_url: track.download_url,
+        speech_detected: musicMatchState.speechDetected,
+      },
+      audio_url: track.preview_audio_url || track.download_url,
+      audio_mode: musicMatchState.audioMode,
+      music_volume: musicMatchState.musicVolume,
+      original_volume: musicMatchState.originalVolume,
+      fade_in_seconds: musicMatchState.fadeInSeconds,
+      fade_out_seconds: musicMatchState.fadeOutSeconds,
+    };
+
+    console.log('[Add Music] Payload:', {
+      videoId: editStudioState.videoId,
+      trackTitle: track.title,
+      audioMode: musicMatchState.audioMode,
+      musicVolume: musicMatchState.musicVolume,
+      originalVolume: musicMatchState.originalVolume,
+    });
+
+    const res = await apiFetch('/music/add-to-video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+    console.log('[Add Music] Response:', data);
+
+    if (!res.ok) {
+      throw new Error(data?.detail || `API ${res.status}`);
+    }
+
+    musicMatchState.addingMusic = false;
+    musicMatchState.addMusicResult = data;
+    musicMatchState.statusMessage = `Music added! File: ${data.output_filename}`;
+
+    // Update the editStudioState with the new version
+    if (data.output_filename) {
+      editStudioState = {
+        ...editStudioState,
+        currentVersion: data.output_filename,
+        previewUrl: data.output_url ? `${API_BASE}${data.output_url}` : editStudioState.previewUrl,
+        downloadUrl: data.output_url ? `${API_BASE}${data.output_url}` : editStudioState.downloadUrl,
+        versionHistory: Array.isArray(data.version_history) ? data.version_history : editStudioState.versionHistory,
+        messages: [
+          ...editStudioState.messages,
+          {
+            role: 'assistant',
+            text: `Added music "${track.title}" in ${musicMatchState.audioMode.replace(/_/g, ' ')} mode. File: ${data.output_filename}`,
+          },
+        ],
+      };
+      
+      console.log('[Add Music] Updated version history:', editStudioState.versionHistory);
+      console.log('[Add Music] New current version:', editStudioState.currentVersion);
+    }
+
+    renderVideoResults(lastVideoAnalysisResult);
+    showToast(`Music added successfully! File: ${data.output_filename}`, 'success');
+  } catch (error) {
+    console.error('[Add Music] Error:', error?.message);
+    musicMatchState.addingMusic = false;
+    musicMatchState.addMusicResult = {
+      success: false,
+      warnings: [error?.message || 'Music addition failed'],
+    };
+    musicMatchState.statusMessage = 'Failed to add music. See details below.';
+    renderVideoResults(lastVideoAnalysisResult);
+    showToast(`Music mixing failed: ${error?.message}`, 'warn');
+  }
+}
+
 
 function renderStudioQuickControls(canSend) {
   const disabled = canSend ? '' : 'disabled';
@@ -2285,37 +2725,43 @@ function renderStudioQuickControls(canSend) {
 
 function bindEditStudioEvents() {
   const input = $('edit-studio-input');
-  const sendButton = $('btn-send-edit-studio');
-  const canSendInstruction = state.backendLive && editStudioState.enabled && !editStudioState.busy;
+  const sendButtons = Array.from(document.querySelectorAll('[data-studio-primary-action]'));
+
+  const canSendInstruction = () => state.backendLive && editStudioState.enabled && !editStudioState.busy;
+  const canApplyAutoEdit = () => state.backendLive && !editStudioState.busy;
 
   document.querySelectorAll('.command-chip[data-command]').forEach(button => {
     button.addEventListener('click', () => {
-      if (!canSendInstruction) return;
+      if (!canSendInstruction()) return;
       if (input) input.value = button.dataset.command || '';
       input?.focus();
     });
   });
 
-  sendButton?.addEventListener('click', () => {
-    if (sendButton.dataset.studioPrimaryAction === 'auto-edit') {
-      onApplyAutoEdit();
-      return;
-    }
-    onSendStudioInstruction();
+  sendButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      if (button.dataset.studioPrimaryAction === 'auto-edit') {
+        if (!canApplyAutoEdit()) return;
+        onApplyAutoEdit();
+        return;
+      }
+      if (!canSendInstruction()) return;
+      onSendStudioInstruction();
+    });
   });
 
   input?.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && !event.shiftKey && canSendInstruction) {
+    if (event.key === 'Enter' && !event.shiftKey && canSendInstruction()) {
       event.preventDefault();
       onSendStudioInstruction();
     }
   });
 
-  bindTimelineControls(canSendInstruction);
+  bindTimelineControls(canApplyAutoEdit());
 
   document.querySelectorAll('.studio-tool-button[data-studio-action]').forEach(button => {
     button.addEventListener('click', () => {
-      if (!canSendInstruction) return;
+      if (!canSendInstruction()) return;
       const instruction = buildStudioToolInstruction(button.dataset.studioAction || '');
       if (instruction) onSendStudioInstruction(instruction);
     });

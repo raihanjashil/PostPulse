@@ -86,7 +86,7 @@ def recommend_music(
         "tracks": tracks,
         "warnings": warnings,
         "jamendo_configured": True,
-        "music_mixing_available": False,
+        "music_mixing_available": True,
     }
 
 

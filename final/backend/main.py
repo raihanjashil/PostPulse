@@ -30,6 +30,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+
 # ---- Models ----
 
 class ScoreRequest(BaseModel):
@@ -107,6 +109,9 @@ def _build_version_history(video_id: str) -> list[str]:
 
 @app.get("/")
 def root():
+    index_path = frontend_dir / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path), media_type="text/html")
     return {"status": "Stars of Science Scorer is live"}
 
 @app.get("/health")
@@ -573,3 +578,18 @@ def publish_endpoint(req: PublishRequest, x_session_id: Optional[str] = Header(d
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result.get("error", "Publish failed"))
     return result
+
+@app.get("/{path:path}")
+def frontend_assets(path: str):
+    frontend_path = frontend_dir / path
+    if frontend_path.exists() and frontend_path.is_file():
+        if frontend_path.suffix == ".css":
+            media_type = "text/css"
+        elif frontend_path.suffix == ".js":
+            media_type = "application/javascript"
+        elif frontend_path.suffix == ".html":
+            media_type = "text/html"
+        else:
+            media_type = "application/octet-stream"
+        return FileResponse(str(frontend_path), media_type=media_type)
+    raise HTTPException(status_code=404, detail="Not Found")
