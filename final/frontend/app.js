@@ -1016,6 +1016,7 @@ function renderRescoreResult(rs) {
   el.classList.remove('hidden');
 }
 
+// ---- RE-SCORE THE REWRITE ----
 // =============================
 // HELPERS
 // =============================
@@ -1250,16 +1251,6 @@ async function onLoadInsights() {
       activateStep(stepFetch);
       const params = new URLSearchParams();
       Object.entries(lastInsightsSources).forEach(([platform, val]) => {
-      const identifierFields = {
-        instagram: 'insights-instagram',
-        tiktok: 'insights-tiktok',
-        twitter: 'insights-twitter',
-        youtube: 'insights-youtube',
-        facebook: 'insights-facebook',
-      };
-      const params = new URLSearchParams();
-      Object.entries(identifierFields).forEach(([platform, inputId]) => {
-        const val = $(inputId)?.value.trim();
         if (val) params.set(platform, val);
       });
       const qs = params.toString();
@@ -1388,7 +1379,6 @@ function renderInsights(data, opts = {}) {
       banner.classList.add('hidden');
     }
   }
-  gridEl.innerHTML = '';
 
   if (data.overall_strategy) {
     overallEl.innerHTML = `
@@ -1407,43 +1397,6 @@ function renderInsights(data, opts = {}) {
 
   // ---- Real Growth vs. Noise (side-by-side SoS vs competitor) ----
   const accounts = data.accounts || {};
-  // ---- Real Growth vs. Noise ----
-  if (growthEl && data.metrics) {
-    const rows = Object.entries(PLATFORMS).map(([pid, p]) => {
-      const m = data.metrics[pid];
-      if (!m) return '';
-      const verdict = data.platforms?.[pid]?.growth_verdict || '';
-      if (!m.has_data) {
-        return `
-          <div class="growth-row no-data">
-            <span class="growth-platform">${p.icon} ${p.name}</span>
-            <span class="growth-verdict">No data available for this account</span>
-          </div>
-        `;
-      }
-      return `
-        <div class="growth-row">
-          <span class="growth-platform">${p.icon} ${p.name}</span>
-          <span class="growth-reach">${fmtNum(m.avg_likes)} <small>avg likes</small></span>
-          <span class="engagement-badge ${m.engagement_quality}">${m.engagement_quality} engagement</span>
-          <span class="growth-verdict">${verdict}</span>
-        </div>
-      `;
-    }).join('');
-
-    growthEl.innerHTML = `
-      <div class="growth-card">
-        <div class="growth-title">📊 Real Growth vs. Noise</div>
-        ${data.real_growth_summary ? `<div class="growth-summary">${data.real_growth_summary}</div>` : ''}
-        <div class="growth-rows">${rows}</div>
-      </div>
-    `;
-    growthEl.classList.remove('hidden');
-  } else if (growthEl) {
-    growthEl.classList.add('hidden');
-    growthEl.innerHTML = '';
-  }
-
   const platformsData = data.platforms || {};
   if (growthEl && Object.keys(accounts).length) {
     const rows = INSIGHTS_PLATFORMS.map(pid => {
@@ -1673,19 +1626,6 @@ function generateMockInsights(sources = {}) {
       competitor: competitorHandle ? mkStats(pid, '@' + String(competitorHandle).replace(/^@/, ''), false) : null,
     };
     const tiny = pid === 'facebook';
-  const metrics = {};
-  Object.entries(PLATFORMS).forEach(([pid, p]) => {
-    const avgLikes = rand(200, 2500);
-    const avgComments = rand(5, 80);
-    const commentRate = avgLikes > 0 ? Math.round((avgComments / avgLikes) * 10000) / 100 : 0;
-    const quality = commentRate >= 5 ? 'high' : commentRate >= 1 ? 'medium' : 'low';
-    metrics[pid] = {
-      avg_likes: avgLikes,
-      avg_comments: avgComments,
-      comment_rate: commentRate,
-      engagement_quality: quality,
-      has_data: true,
-    };
     platforms[pid] = {
       headline: `[Mock] ${p.name} rewards curiosity-driven hooks`,
       patterns: [
@@ -1700,10 +1640,6 @@ function generateMockInsights(sources = {}) {
       comparison: competitorHandle
         ? `[Mock] vs @${String(competitorHandle).replace(/^@/, '')}: comparable reach, but SoS edges ahead on comment rate.`
         : null,
-      recommendation: `[Mock] Open every ${p.name} post with a surprising stat or question.`,
-      growth_verdict: quality === 'low'
-        ? `[Mock] Big reach but shallow — only ${commentRate} comments per 100 likes. Vanity numbers.`
-        : `[Mock] This audience talks back — ${commentRate} comments per 100 likes is a real community signal.`,
     };
   });
 
@@ -1713,9 +1649,6 @@ function generateMockInsights(sources = {}) {
     overall_strategy: '[Mock] Lead with curiosity hooks across platforms and chase comments, not just likes.',
     real_growth_summary: '[Mock] The real community lives where the comment rate is highest; platforms with big likes but quiet comment sections are vanity reach.',
     generated_at: 'mock',
-    metrics,
-    overall_strategy: '[Mock] Across all platforms, curiosity-driven hooks and clear CTAs drive the most consistent engagement. Post consistently on Tue/Wed in the Gulf evening window (6–9pm GST).',
-    real_growth_summary: '[Mock] The real engaged community lives where the comment rate is highest — chase conversations, not just impressions. Big like counts with silent comment sections are vanity reach.',
   };
 }
 
@@ -2029,17 +1962,6 @@ function initImageUpload() {
   const fileLabel  = $('image-filename');
   const analyzeBtn = $('btn-analyze-image');
   const clearBtn   = $('btn-clear-image');
-// ACTIVE AI EDIT SUGGESTIONS UI
-// =============================
-
-function initVideoUpload() {
-  const area = $('video-upload-area');
-  const fileInput = $('video-file-input');
-  const prompt = $('upload-prompt');
-  const selected = $('upload-selected');
-  const fileLabel = $('upload-filename');
-  const analyzeBtn = $('btn-analyze-video');
-  const clearBtn = $('btn-clear-video');
   if (!area) return;
 
   area.addEventListener('click', e => {
@@ -2047,11 +1969,6 @@ function initVideoUpload() {
     fileInput.click();
   });
   area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('drag-over'); });
-
-  area.addEventListener('dragover', e => {
-    e.preventDefault();
-    area.classList.add('drag-over');
-  });
   area.addEventListener('dragleave', () => area.classList.remove('drag-over'));
   area.addEventListener('drop', e => {
     e.preventDefault();
@@ -2066,18 +1983,6 @@ function initVideoUpload() {
     e.stopPropagation();
     selectedImageFile = null;
     if (imagePreviewUrl) { URL.revokeObjectURL(imagePreviewUrl); imagePreviewUrl = null; }
-    if (file) setVideoFile(file);
-  });
-
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files?.[0]) setVideoFile(fileInput.files[0]);
-  });
-
-  clearBtn?.addEventListener('click', e => {
-    e.stopPropagation();
-    selectedVideoFile = null;
-    lastVideoAnalysisResult = null;
-    resetEditStudioState();
     fileInput.value = '';
     prompt.classList.remove('hidden');
     selected.classList.add('hidden');
@@ -2089,13 +1994,6 @@ function initVideoUpload() {
     selectedImageFile = file;
     if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     imagePreviewUrl = URL.createObjectURL(file);
-    $('video-results')?.classList.add('hidden');
-  });
-
-  function setVideoFile(file) {
-    selectedVideoFile = file;
-    lastVideoAnalysisResult = null;
-    resetEditStudioState();
     if (fileLabel) fileLabel.textContent = file.name;
     prompt.classList.add('hidden');
     selected.classList.remove('hidden');
@@ -2962,17 +2860,24 @@ async function searchPexels() {
 
   loading.classList.remove('hidden');
   let photos = [];
+  let configured = true;
   try {
     const res = await apiFetch('/pexels/search', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, group: pexelsTarget }),
     });
-    if (res.ok) photos = (await res.json()).photos || [];
+    if (res.ok) {
+      const j = await res.json();
+      photos = j.photos || [];
+      configured = j.configured !== false;
+    }
   } catch { /* handled below */ }
   loading.classList.add('hidden');
 
   if (!photos.length) {
-    empty.textContent = 'No photos found — try a different search.';
+    empty.textContent = configured
+      ? 'No photos found — try a different search.'
+      : 'Pexels isn’t configured — add PEXELS_API_KEY to the backend .env and restart the server.';
     empty.classList.remove('hidden');
     return;
   }
@@ -3008,6 +2913,65 @@ async function applyPexelsPhoto(url, thumbEl) {
     showToast('Could not load that photo', 'error');
   } catch { showToast('Could not load that photo', 'error'); }
   if (thumbEl) thumbEl.style.opacity = '';
+}
+
+// =============================
+// ACTIVE AI EDIT SUGGESTIONS UI
+// =============================
+
+function initVideoUpload() {
+  const area = $('video-upload-area');
+  const fileInput = $('video-file-input');
+  const prompt = $('upload-prompt');
+  const selected = $('upload-selected');
+  const fileLabel = $('upload-filename');
+  const analyzeBtn = $('btn-analyze-video');
+  const clearBtn = $('btn-clear-video');
+  if (!area) return;
+
+  area.addEventListener('click', e => {
+    if (clearBtn && (e.target === clearBtn || clearBtn.contains(e.target))) return;
+    fileInput.click();
+  });
+
+  area.addEventListener('dragover', e => {
+    e.preventDefault();
+    area.classList.add('drag-over');
+  });
+  area.addEventListener('dragleave', () => area.classList.remove('drag-over'));
+  area.addEventListener('drop', e => {
+    e.preventDefault();
+    area.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file) setVideoFile(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files?.[0]) setVideoFile(fileInput.files[0]);
+  });
+
+  clearBtn?.addEventListener('click', e => {
+    e.stopPropagation();
+    selectedVideoFile = null;
+    lastVideoAnalysisResult = null;
+    resetEditStudioState();
+    fileInput.value = '';
+    prompt.classList.remove('hidden');
+    selected.classList.add('hidden');
+    analyzeBtn.disabled = true;
+    $('video-results')?.classList.add('hidden');
+  });
+
+  function setVideoFile(file) {
+    selectedVideoFile = file;
+    lastVideoAnalysisResult = null;
+    resetEditStudioState();
+    if (fileLabel) fileLabel.textContent = file.name;
+    prompt.classList.add('hidden');
+    selected.classList.remove('hidden');
+    analyzeBtn.disabled = false;
+  }
+
   analyzeBtn?.addEventListener('click', onAnalyzeVideo);
 }
 
@@ -4453,15 +4417,6 @@ function describeEditItem(item) {
   if (type === 'volume adjust') return 'Adjust audio volume';
   if (type === 'mute') return 'Mute audio';
   return `${type.charAt(0).toUpperCase()}${type.slice(1)}`;
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }
 
 function renderScoreChip(label, value, allowUnknown = false) {

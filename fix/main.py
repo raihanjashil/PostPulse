@@ -1,11 +1,5 @@
-import os
-# MUST be set before any OpenMP-bearing lib (faster-whisper/ctranslate2, cv2, numpy)
-# loads, or they abort with "OMP Error #15: ... multiple copies of the OpenMP runtime".
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-
 import asyncio
 import json
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Optional
@@ -15,50 +9,17 @@ from fastapi import FastAPI, Header, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse
 from pydantic import BaseModel
+import ai_edit_suggestions
+import auto_edit_pipeline
+import edit_studio
+import music_matcher
 import auth
 import publish
 import sessions as sessions_module
 import platform_config as cfg_module
-import image_gen
-import pexels
-import video_analyzer
-from scorer import (
-    score_post, score_all_platforms, recommend_publishing, generate_account_insights,
-    generate_campaign_pack, generate_headline_options,
-)
-
-# ---- Optional AI video/music editing stack ----
-# These need heavy extra deps (av, faster-whisper, imageio-ffmpeg). Keep them optional
-# so the core app (scoring, insights, image, campaign) always boots even before
-# `pip install -r requirements.txt`. If they fail to import, the edit/music routes
-# return a clean 503 instead of taking the whole API down.
-class _MissingEditFeature:
-    def __init__(self, error):
-        self._error = error
-
-    def __getattr__(self, _name):
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "AI video/music editing is unavailable on this server — install the "
-                "optional dependencies (av, faster-whisper, imageio-ffmpeg). "
-                f"Import error: {self._error}"
-            ),
-        )
-
-try:
-    import ai_edit_suggestions
-    import auto_edit_pipeline
-    import edit_studio
-    import music_matcher
-    import audio_analysis
-    import music_mixer
-    EDIT_FEATURES_AVAILABLE = True
-except Exception as _edit_import_error:  # missing av / faster_whisper / imageio_ffmpeg, etc.
-    EDIT_FEATURES_AVAILABLE = False
-    _miss = _MissingEditFeature(_edit_import_error)
-    ai_edit_suggestions = auto_edit_pipeline = edit_studio = music_matcher = audio_analysis = music_mixer = _miss
-    print(f"[startup] AI edit features disabled: {_edit_import_error}")
+import audio_analysis
+import music_mixer
+from scorer import score_post, score_all_platforms, recommend_publishing, generate_account_insights
 
 app = FastAPI(title="SoS Content Scorer API")
 
@@ -79,33 +40,11 @@ class ScoreRequest(BaseModel):
     topic: str = "science innovation"
     media_type: str = "text"
     goal: str = "reach"  # "reach" | "engagement" | "conversions"
-    persona: str = "general"  # "general" | "applicants" | "viewers" | "sponsors"
 
 class PublishRequest(BaseModel):
     platform: str
     text: str
 
-class CampaignRequest(BaseModel):
-    campaign_goal: str
-    persona: str = "general"  # "general" | "applicants" | "viewers" | "sponsors"
-    goal: str = "reach"       # "reach" | "engagement" | "conversions"
-
-class GenerateImageRequest(BaseModel):
-    prompt: str
-    group: str = "social"     # "social" | "linkedin"
-
-class RegenerateLayerRequest(BaseModel):
-    campaign_goal: str
-    group: str = "social"     # "social" | "linkedin"
-    layer: str = "headline"   # "headline" | "subheadline" | "cta"
-    persona: str = "general"
-
-class PexelsSearchRequest(BaseModel):
-    query: str
-    group: str = "social"     # "social" | "linkedin"
-
-class PexelsImageRequest(BaseModel):
-    url: str
 
 class MusicRecommendRequest(BaseModel):
     transcript: Any = None
@@ -140,10 +79,16 @@ def _parse_json_form(value: str, default: Any) -> Any:
 async def _resolve_source_video(
     upload: UploadFile | None,
     video_id: str | None,
+    prefer_existing_video_id: bool = False,
 ) -> tuple[str, Path]:
     resolved_video_id = (video_id or uuid4().hex[:10]).strip()
     if not resolved_video_id:
         resolved_video_id = uuid4().hex[:10]
+
+    if prefer_existing_video_id:
+        existing_source_path = auto_edit_pipeline.find_source_path(resolved_video_id)
+        if existing_source_path is not None and existing_source_path.exists():
+            return resolved_video_id, existing_source_path
 
     if upload is not None and upload.filename:
         suffix = Path(upload.filename).suffix or ".mp4"
@@ -185,7 +130,7 @@ def health():
 def score(req: ScoreRequest, x_session_id: Optional[str] = Header(default=None)):
     if req.platform == "all":
         raw_results = score_all_platforms(
-            req.draft, req.topic, req.media_type, session_id=x_session_id, persona=req.persona
+            req.draft, req.topic, req.media_type, session_id=x_session_id
         )
     else:
         user_data = None
@@ -201,7 +146,7 @@ def score(req: ScoreRequest, x_session_id: Optional[str] = Header(default=None))
                     "avg_comments": avg_comments,
                     "username": ui.get("username") or ui.get("name", ""),
                 }
-        raw_results = {req.platform: score_post(req.draft, req.platform, req.topic, req.media_type, user_data=user_data, persona=req.persona)}
+        raw_results = {req.platform: score_post(req.draft, req.platform, req.topic, req.media_type, user_data=user_data)}
 
     benchmarks = {}
     results = {}
@@ -223,7 +168,7 @@ def score(req: ScoreRequest, x_session_id: Optional[str] = Header(default=None))
                     "blocked": sess_plat.get("blocked", False),
                 }
 
-    recommendation = recommend_publishing(results, benchmarks, req.goal, persona=req.persona) if req.platform == "all" else {}
+    recommendation = recommend_publishing(results, benchmarks, req.goal) if req.platform == "all" else {}
 
     return {"results": results, "benchmarks": benchmarks, "connected": connected, "recommendation": recommendation}
 
@@ -286,47 +231,8 @@ def clear_config(platform: str):
 # ---- Insights ----
 
 @app.get("/insights")
-def insights(
-    instagram: Optional[str] = None,
-    tiktok: Optional[str] = None,
-    twitter: Optional[str] = None,
-    youtube: Optional[str] = None,
-    facebook: Optional[str] = None,
-):
-    identifiers = {
-        "instagram": instagram,
-        "tiktok": tiktok,
-        "twitter": twitter,
-        "youtube": youtube,
-        "facebook": facebook,
-    }
-    return generate_account_insights(identifiers)
-
-# ---- Campaign Pack ----
-
-@app.post("/campaign")
-def campaign(req: CampaignRequest):
-    return generate_campaign_pack(req.campaign_goal, req.persona, req.goal)
-
-# ---- Campaign Creatives (poster background image + layer regeneration) ----
-
-@app.post("/generate-image")
-def generate_image(req: GenerateImageRequest):
-    return image_gen.generate_background(req.prompt, req.group)
-
-@app.post("/regenerate-layer")
-def regenerate_layer(req: RegenerateLayerRequest):
-    return generate_headline_options(req.campaign_goal, req.group, req.layer, req.persona)
-
-# ---- Pexels stock photos (alternative creative background source) ----
-
-@app.post("/pexels/search")
-def pexels_search(req: PexelsSearchRequest):
-    return {"photos": pexels.search(req.query, req.group), "configured": pexels.is_configured()}
-
-@app.post("/pexels/image")
-def pexels_image(req: PexelsImageRequest):
-    return pexels.fetch_as_data_url(req.url)
+def insights():
+    return generate_account_insights()
 
 # ---- Video Analyzer ----
 
@@ -401,7 +307,7 @@ async def chat_edit_video_endpoint(
     if not isinstance(current_edit_history, list):
         raise HTTPException(status_code=400, detail="current_edit_history_json must decode to a list.")
 
-    resolved_video_id, source_path = await _resolve_source_video(upload, video_id)
+    resolved_video_id = (video_id or uuid4().hex[:10]).strip() or uuid4().hex[:10]
     metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
     effective_target_platform = (
         target_platform
@@ -432,6 +338,11 @@ async def chat_edit_video_endpoint(
             "version_history": _build_version_history(resolved_video_id),
         }
 
+    resolved_video_id, source_path = await _resolve_source_video(
+        upload,
+        resolved_video_id,
+        prefer_existing_video_id=True,
+    )
     new_commands = list(plan.get("edit_commands") or [])
     combined_history = current_edit_history + new_commands
     for command in reversed(combined_history):
@@ -627,7 +538,7 @@ async def add_music_to_video_endpoint(req: AddMusicToVideoRequest):
                 "track_artist": result.get("track_artist"),
                 "video_duration_seconds": result.get("video_duration_seconds"),
                 "warnings": result.get("warnings", []),
-                "version_history": auto_edit_pipeline._build_version_history(video_id),
+                "version_history": _build_version_history(video_id),
             }
         else:
             raise HTTPException(
@@ -662,23 +573,6 @@ def download_edited_video_version(video_id: str, filename: str):
     if not output_path.exists():
         raise HTTPException(status_code=404, detail="Edited video version not found.")
     return FileResponse(str(output_path), media_type="video/mp4", filename=safe_filename)
-
-# ---- Image Analyzer ----
-
-@app.post("/analyze-image")
-async def analyze_image_endpoint(
-    file: UploadFile = File(...),
-    topic: str = Form(default="science innovation"),
-):
-    suffix = os.path.splitext(file.filename or "")[1] or ".jpg"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp_path = tmp.name
-    try:
-        result = video_analyzer.analyze_image(tmp_path, topic)
-    finally:
-        os.unlink(tmp_path)
-    return result
 
 # ---- Publish ----
 

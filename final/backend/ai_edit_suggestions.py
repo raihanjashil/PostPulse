@@ -1,5 +1,11 @@
 import json
 import os
+
+# MUST be set before av / faster-whisper(ctranslate2) / cv2 load, otherwise the
+# OpenMP runtimes clash and the process aborts with "OMP Error #15" (which is a
+# native abort, not a catchable Python exception) — that's what hangs transcription.
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
 import tempfile
 import wave
 from pathlib import Path
@@ -14,6 +20,17 @@ from openai import OpenAI
 import video_analyzer
 
 load_dotenv()
+
+# Load the Whisper model once and reuse it — re-creating it per request is slow
+# and needlessly re-initializes the OpenMP runtime each time.
+_WHISPER_MODEL = None
+
+
+def _get_whisper_model():
+    global _WHISPER_MODEL
+    if _WHISPER_MODEL is None:
+        _WHISPER_MODEL = WhisperModel(WHISPER_MODEL_SIZE, device="cpu", compute_type="int8")
+    return _WHISPER_MODEL
 
 OPENAI_VIDEO_MODEL = os.getenv("OPENAI_VIDEO_EDIT_MODEL", "gpt-4o-mini")
 VIDEO_PLATFORMS = {"instagram", "tiktok", "twitter", "youtube", "linkedin", "facebook"}
@@ -192,7 +209,7 @@ def transcribe_audio(audio_info: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        model = WhisperModel(WHISPER_MODEL_SIZE, device="cpu", compute_type="int8")
+        model = _get_whisper_model()
         segments, info = model.transcribe(str(audio_path), vad_filter=True)
         normalized_segments = [
             {

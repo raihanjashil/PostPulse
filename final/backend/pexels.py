@@ -9,6 +9,12 @@ PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 
 SEARCH_URL = "https://api.pexels.com/v1/search"
 
+
+def is_configured() -> bool:
+    """True when a Pexels API key is available (PEXELS_API_KEY in the backend .env)."""
+    return bool(PEXELS_API_KEY)
+
+
 # Poster group → Pexels orientation (social creatives are square, LinkedIn is landscape).
 _ORIENTATION = {"social": "square", "linkedin": "landscape"}
 

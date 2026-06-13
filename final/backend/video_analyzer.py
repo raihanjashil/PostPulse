@@ -2,6 +2,9 @@ import base64
 import json
 import math
 import os
+
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")  # avoid OpenMP dup-runtime abort (cv2 + faster-whisper)
+
 import subprocess
 from pathlib import Path
 from typing import Any

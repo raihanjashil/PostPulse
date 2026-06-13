@@ -1,5 +1,9 @@
 import json
 import math
+import os
+
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")  # avoid OpenMP dup-runtime abort (cv2/numpy + faster-whisper)
+
 import shutil
 import subprocess
 from pathlib import Path
