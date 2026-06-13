@@ -1,10 +1,14 @@
 import os
 import json
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
 from dotenv import load_dotenv
-from data_layer import get_platform_data, get_user_platform_data, hard_rules_check, OPTIMAL_POSTING_TIMES
+from data_layer import (
+    get_platform_data, get_user_platform_data, hard_rules_check, OPTIMAL_POSTING_TIMES,
+    get_account_stats, engagement_quality, INSIGHTS_PLATFORMS,
+)
 from brand_config import BRAND_PROFILE, PERSONAS
 
 load_dotenv()
@@ -17,18 +21,6 @@ PLATFORMS = ["instagram", "tiktok", "twitter", "youtube", "linkedin", "facebook"
 SCORE_ALL_PLATFORMS = ["twitter", "linkedin", "facebook"]
 
 ARABIC_RE = re.compile(r'[؀-ۿ]')
-
-
-def _engagement_quality(avg_likes, avg_comments):
-    """comment_rate = comments per 100 likes; >=5 high, >=1 medium, else low."""
-    comment_rate = round((avg_comments / avg_likes) * 100, 2) if avg_likes > 0 else 0
-    if comment_rate >= 5:
-        quality = "high"
-    elif comment_rate >= 1:
-        quality = "medium"
-    else:
-        quality = "low"
-    return comment_rate, quality
 
 def score_post(
     draft: str,
@@ -144,13 +136,13 @@ Return ONLY valid JSON, no extra text:
 
     result["draft_language"] = "ar" if is_arabic else "en"
 
-    comment_rate, engagement_quality = _engagement_quality(avg_likes, avg_comments)
+    comment_rate, eng_quality = engagement_quality(platform, avg_likes, avg_comments)
 
     result["_benchmark"] = {
         "avg_likes": avg_likes,
         "avg_comments": avg_comments,
         "comment_rate": comment_rate,
-        "engagement_quality": engagement_quality,
+        "engagement_quality": eng_quality,
         "top_post_likes": top_posts[0]["likes"] if top_posts else 0,
         "top_post_caption": (top_posts[0].get("caption", "")[:80] + "...") if top_posts else "",
         "post_count": len(top_posts),
@@ -234,75 +226,264 @@ def recommend_publishing(results: dict, benchmarks: dict, goal: str = "reach", p
     }
 
 
+def _compact_account(stats: dict) -> dict:
+    """Trim a get_account_stats() dict to just the real facts the model may cite.
+    None-valued aggregates are dropped so the model never sees (and can't claim) them."""
+    if not stats or not stats.get("has_data"):
+        return {"has_data": False, "error": (stats or {}).get("error", "no data")}
+    out = {
+        "handle": stats.get("handle"),
+        "followers": stats.get("follower_count"),
+        "avg_likes": stats.get("avg_likes"),
+        "avg_comments": stats.get("avg_comments"),
+        "comment_rate_per_100_likes": stats.get("comment_rate"),
+        "engagement_quality": stats.get("engagement_quality"),
+        "engagement_rate_pct": stats.get("engagement_rate"),
+        "avg_caption_length": stats.get("avg_caption_len"),
+        "avg_hashtags_per_post": stats.get("avg_hashtags"),
+        "avg_views": stats.get("avg_views"),
+        "post_count": stats.get("post_count"),
+        "top_posts": [
+            {k: v for k, v in {
+                "caption": tp.get("caption"),
+                "likes": tp.get("likes"),
+                "comments": tp.get("comments"),
+                "views": tp.get("views"),
+                "hashtags": tp.get("hashtags"),
+            }.items() if v is not None}
+            for tp in stats.get("top_posts", [])
+        ],
+    }
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _insight_for_platform(platform: str, sos: dict, competitor: dict) -> dict:
+    """One grounded, per-platform AI analysis (SoS, plus competitor if provided)."""
+    sos_has = bool(sos and sos.get("has_data"))
+    comp_has = bool(competitor and competitor.get("has_data"))
+    if not sos_has and not comp_has:
+        reason = (sos or {}).get("error") or "no data available"
+        return {
+            "headline": f"No data for {platform} ({reason}).",
+            "patterns": [],
+            "recommendation": "Connect a working account/handle to analyze this platform.",
+            "growth_verdict": "",
+            "comparison": None,
+            "no_data": True,
+        }
+
+    payload = {"sos": _compact_account(sos)}
+    if competitor:
+        payload["competitor"] = _compact_account(competitor)
+    timing = OPTIMAL_POSTING_TIMES.get(platform, {})
+    competitor_rule = (
+        '- A competitor account IS included — give a direct, specific SoS-vs-competitor comparison for this platform.\n'
+        if competitor else
+        '- No competitor provided — set "comparison" to null.\n'
+    )
+
+    prompt = f"""You are a social-media analyst for {BRAND_PROFILE['name']} — {BRAND_PROFILE['description']}. Audience: {BRAND_PROFILE['audience_note']}.
+
+PLATFORM: {platform.upper()}
+REAL DATA (these numbers are the ONLY facts you have — do not invent others):
+{json.dumps(payload, indent=2, ensure_ascii=False)}
+
+Benchmark posting windows for this platform (GST), context only: days {timing.get('best_days', [])}, hours {timing.get('best_hours', [])}.
+
+RULES:
+- Ground EVERY statement in the numbers/captions above and cite real figures.
+- Do NOT mention posting cadence, frequency, or time-of-day — that data is not available here.
+- Engagement honesty: many likes with a low comment_rate is shallow/vanity reach; a high comment_rate (and engagement_rate_pct if shown) means a real community.
+{competitor_rule}
+Return ONLY valid JSON:
+{{
+  "headline": "<one punchy, data-grounded sentence>",
+  "patterns": ["<observation citing a real number or caption>", "<observation 2>", "<observation 3>"],
+  "recommendation": "<one specific, actionable tip grounded in this data>",
+  "growth_verdict": "<engaged community vs vanity reach — cite the actual comment_rate>",
+  "comparison": "<one sentence comparing SoS vs the competitor on this platform, or null>"
+}}
+"""
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=700,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
+        return json.loads(raw)
+    except Exception as e:
+        return {"error": f"analysis failed: {e}"}
+
+
+def _synthesize_overview(accounts: dict) -> tuple:
+    """Cross-platform overall_strategy + real_growth_summary from the SoS metrics.
+    Deterministic fallback if the synthesis call fails."""
+    facts = {}
+    for platform, acc in accounts.items():
+        sos = acc.get("sos") or {}
+        if sos.get("has_data"):
+            facts[platform] = {
+                "avg_likes": sos.get("avg_likes"),
+                "comment_rate": sos.get("comment_rate"),
+                "engagement_quality": sos.get("engagement_quality"),
+                "engagement_rate": sos.get("engagement_rate"),
+            }
+    if not facts:
+        return (
+            "No live account data was available to analyze.",
+            "No data could be fetched, so real growth vs. vanity reach can't be assessed right now.",
+        )
+    try:
+        prompt = f"""Given these REAL per-platform metrics for {BRAND_PROFILE['name']}:
+{json.dumps(facts, indent=2)}
+Return ONLY JSON, grounded strictly in these numbers:
+{{"overall_strategy": "<2-3 sentences across platforms>", "real_growth_summary": "<2 sentences: where the engaged community really is vs where numbers are vanity reach, citing comment_rate / engagement_rate>"}}"""
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=400,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
+        j = json.loads(raw)
+        return j.get("overall_strategy", ""), j.get("real_growth_summary", "")
+    except Exception:
+        rank = lambda kv: (kv[1].get("engagement_rate") or kv[1].get("comment_rate") or 0)
+        best = max(facts.items(), key=rank)
+        worst = min(facts.items(), key=rank)
+        return (
+            f"Concentrate effort where engagement is deepest — {best[0]} leads on real interaction.",
+            f"{best[0]} shows the most genuine conversation, while {worst[0]}'s numbers look more like vanity reach.",
+        )
+
+
 def generate_account_insights(identifiers: dict = None):
-    """Analyze real recent posts per platform and surface engagement patterns.
-    `identifiers` optionally maps platform -> account identifier (handle/channel ID/page URL)
-    to override the Stars of Science defaults."""
+    """Side-by-side Account Intelligence: for each platform, fetch Stars of Science and
+    (if a handle was given) the competitor, then run grounded per-platform AI analysis.
+    Fetches and AI calls run in parallel; failures isolate per platform."""
     identifiers = identifiers or {}
-    account_data = {}
-    metrics = {}
+
+    # 1) Fetch SoS (+ competitor) per platform, all in parallel.
+    fetch_jobs = {}  # (platform, role) -> (platform, identifier)
+    for platform in INSIGHTS_PLATFORMS:
+        fetch_jobs[(platform, "sos")] = (platform, None)
+        handle = identifiers.get(platform)
+        if handle:
+            fetch_jobs[(platform, "competitor")] = (platform, handle)
+
+    # Throttle concurrency — RapidAPI's free tier rate-limits per key, so a big
+    # burst makes most fetches time out. 3 at a time is gentle; the TTL cache keeps
+    # repeat loads fast. (The per-platform AI calls below hit OpenAI and stay parallel.)
+    fetched = {}
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        future_to_key = {
+            ex.submit(get_account_stats, plat, ident): key
+            for key, (plat, ident) in fetch_jobs.items()
+        }
+        for future, key in future_to_key.items():
+            plat, ident = fetch_jobs[key]
+            try:
+                fetched[key] = future.result()
+            except Exception as e:
+                fetched[key] = {
+                    "has_data": False,
+                    "error": f"fetch failed: {e}",
+                    "is_default": ident is None,
+                    "handle": ident or "Stars of Science (default)",
+                }
+
+    accounts = {
+        platform: {
+            "sos": fetched.get((platform, "sos")),
+            "competitor": fetched.get((platform, "competitor")),
+        }
+        for platform in INSIGHTS_PLATFORMS
+    }
+
+    # 2) Per-platform AI analysis, in parallel — one bad platform can't sink the rest.
+    platforms_out = {}
+    with ThreadPoolExecutor(max_workers=len(INSIGHTS_PLATFORMS)) as ex:
+        fut_to_plat = {
+            ex.submit(_insight_for_platform, p, accounts[p]["sos"], accounts[p]["competitor"]): p
+            for p in INSIGHTS_PLATFORMS
+        }
+        for future, p in fut_to_plat.items():
+            try:
+                platforms_out[p] = future.result()
+            except Exception as e:
+                platforms_out[p] = {"error": f"analysis failed: {e}"}
+
+    # 3) Cross-platform synthesis (with deterministic fallback).
+    overall_strategy, real_growth_summary = _synthesize_overview(accounts)
+
+    return {
+        "platforms": platforms_out,
+        "accounts": accounts,
+        "overall_strategy": overall_strategy,
+        "real_growth_summary": real_growth_summary,
+        "generated_at": time.strftime("%Y-%m-%d %H:%M"),
+    }
+
+
+def generate_campaign_pack(campaign_goal: str, persona: str = "general", goal: str = "reach"):
+    """One-click cross-platform campaign kit: from a single campaign goal, generate
+    a ready-to-publish, platform-native post for every platform (bilingual)."""
+    persona_info = PERSONAS.get(persona, PERSONAS["general"])
+
+    timing_lines = []
     for platform in PLATFORMS:
-        top_posts, avg_likes, avg_comments = get_platform_data(platform, identifiers.get(platform))
-        comment_rate, engagement_quality = _engagement_quality(avg_likes, avg_comments)
-        account_data[platform] = {
-            "avg_likes": avg_likes,
-            "avg_comments": avg_comments,
-            "comment_rate_per_100_likes": comment_rate,
-            "engagement_quality": engagement_quality,
-            "top_posts": top_posts,
-            "has_data": len(top_posts) > 0,
-        }
-        metrics[platform] = {
-            "avg_likes": avg_likes,
-            "avg_comments": avg_comments,
-            "comment_rate": comment_rate,
-            "engagement_quality": engagement_quality,
-            "has_data": len(top_posts) > 0,
-        }
+        t = OPTIMAL_POSTING_TIMES.get(platform, {})
+        timing_lines.append(
+            f"- {platform}: best days {t.get('best_days', [])}, best hours (GST) {t.get('best_hours', [])}"
+        )
+    timing_block = "\n".join(timing_lines)
 
     prompt = f"""
-You are a social media analytics expert decoding the algorithm behavior for {BRAND_PROFILE['name']} — {BRAND_PROFILE['description']}, posting to {BRAND_PROFILE['audience_note']}.
+You are a social media campaign strategist for {BRAND_PROFILE['name']} — {BRAND_PROFILE['description']}. They post to {BRAND_PROFILE['audience_note']}.
 
-Below is REAL data pulled from their live accounts: average engagement per platform and their top 3 best-performing posts (with captions, likes, comments).
+CAMPAIGN GOAL: {campaign_goal}
+TARGET AUDIENCE: {persona_info['label']} — {persona_info['desc']}.
+OPTIMIZATION GOAL: {goal} (reach = maximize impressions, engagement = maximize replies/shares, conversions = maximize clicks/applications).
 
-DATA:
-{json.dumps(account_data, indent=2)}
+OPTIMAL POSTING WINDOWS (Gulf Standard Time):
+{timing_block}
 
-For each platform that HAS real data (has_data: true), compare the top-performing posts against the account average and decode concrete patterns — e.g. caption length, tone, hashtag usage, topics, posting style — that correlate with higher engagement. Reference the ACTUAL captions/numbers in the data, not generic platform advice.
+For EACH of these 6 platforms — {", ".join(PLATFORMS)} — write ONE ready-to-publish, platform-native post for this campaign. Each must respect that platform's norms: length, tone, formatting, emoji use, hashtag conventions, and a call-to-action that fits the optimization goal and the target audience. Make the posts genuinely different per platform — do not just reuse the same text.
 
-Also judge REAL GROWTH vs. NOISE per platform: a high comment rate (comments per 100 likes) means an engaged community that talks back; big like counts with a low comment rate is shallow vanity reach. Reference the actual comment_rate_per_100_likes numbers.
-
-For platforms with NO data (has_data: false), say data wasn't available and give one general best-practice tip instead.
+For every post:
+- "text": the post in ENGLISH, ready to publish as-is.
+- "text_alt": a culturally adapted ARABIC version for Arabic-speaking MENA audiences (adapted, not a literal translation).
+- "hashtags": 3-5 relevant hashtags.
+- "best_time": pick a concrete slot from the posting windows above (e.g. "Friday 8pm GST").
+- "persona_note": one sentence on why this post works for {persona_info['label']}.
+- "rationale": one sentence on the platform-specific choice you made.
 
 Return ONLY valid JSON, no extra text, in this exact shape:
 {{
-  "platforms": {{
-    "instagram": {{
-      "headline": "<one punchy sentence summarizing the #1 pattern>",
-      "patterns": ["<concrete observation 1>", "<concrete observation 2>", "<concrete observation 3>"],
-      "recommendation": "<one specific, actionable tip based on this data>",
-      "growth_verdict": "<one punchy line: is this an engaged community that talks back, or big-but-shallow reach? Reference the actual comment rate>"
-    }},
-    "tiktok": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "...", "growth_verdict": "..." }},
-    "twitter": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "...", "growth_verdict": "..." }},
-    "youtube": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "...", "growth_verdict": "..." }},
-    "linkedin": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "...", "growth_verdict": "..." }},
-    "facebook": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "...", "growth_verdict": "..." }}
+  "campaign_goal": "{campaign_goal}",
+  "posts": {{
+    "instagram": {{ "text": "...", "text_alt": "...", "hashtags": ["#..."], "best_time": "...", "persona_note": "...", "rationale": "..." }},
+    "tiktok": {{ "text": "...", "text_alt": "...", "hashtags": ["#..."], "best_time": "...", "persona_note": "...", "rationale": "..." }},
+    "twitter": {{ "text": "...", "text_alt": "...", "hashtags": ["#..."], "best_time": "...", "persona_note": "...", "rationale": "..." }},
+    "youtube": {{ "text": "...", "text_alt": "...", "hashtags": ["#..."], "best_time": "...", "persona_note": "...", "rationale": "..." }},
+    "linkedin": {{ "text": "...", "text_alt": "...", "hashtags": ["#..."], "best_time": "...", "persona_note": "...", "rationale": "..." }},
+    "facebook": {{ "text": "...", "text_alt": "...", "hashtags": ["#..."], "best_time": "...", "persona_note": "...", "rationale": "..." }}
   }},
-  "overall_strategy": "<2-3 sentence cross-platform strategy synthesizing the strongest signal across all accounts>",
-  "real_growth_summary": "<2 sentences: across all platforms, where does the REAL engaged community live vs. where are the numbers vanity reach>"
+  "overall_note": "<1-2 sentence cross-platform campaign strategy tying the posts together>"
 }}
+
+IMPORTANT: "posts" must contain all 6 platforms listed above.
 """
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        max_tokens=1800,
+        max_tokens=3500,
         response_format={"type": "json_object"},
         messages=[{"role": "user", "content": prompt}]
     )
 
     raw = response.choices[0].message.content.strip()
     raw = raw.replace("```json", "").replace("```", "").strip()
-    result = json.loads(raw)
-    result["metrics"] = metrics
-    return result
+    return json.loads(raw)

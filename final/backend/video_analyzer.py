@@ -123,3 +123,74 @@ IMPORTANT: "frames" must contain exactly {len(frames)} entries, with "index" val
             )
 
     return result
+
+
+def analyze_image(image_path: str, topic: str = "science innovation"):
+    """Score a single image / poster before it goes live — same vision model as
+    analyze_video, minus the frame sampling."""
+    img = cv2.imread(image_path)
+    if img is None:
+        return {"error": "Could not read this image"}
+
+    h, w = img.shape[:2]
+    if w > MAX_WIDTH:
+        scale = MAX_WIDTH / w
+        img = cv2.resize(img, (MAX_WIDTH, int(h * scale)))
+    _, buffer = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 70])
+    b64 = base64.b64encode(buffer).decode("utf-8")
+
+    prompt_text = f"""
+You are a social media creative strategist. A creator on the {BRAND_PROFILE['name']} team ({BRAND_PROFILE['description']}, posting to {BRAND_PROFILE['audience_note']}) is testing whether THIS SPECIFIC IMAGE is ready to post.
+
+The image is attached below. The creator gave a TOPIC label of "{topic}".
+
+CRITICAL RULE: Base EVERYTHING on what is ACTUALLY VISIBLE in the image — the real subject, text, colors, composition, lighting, branding. Do NOT assume the image matches the topic, and do NOT invent content that isn't shown. If it doesn't match the topic, say so plainly and judge it as what it actually is.
+
+Steps:
+1. "image_summary" — 1-2 plain, literal sentences describing what is ACTUALLY in the image.
+2. Score it 0-20 on each of: visual_hook (does it stop the scroll?), composition (framing, balance, focal point), text_readability (is any text legible and well-placed? if no text, judge whether it needs some), brand_fit (does it suit {BRAND_PROFILE['name']}'s science/innovation identity?), platform_readiness (is it crop/format ready for social?). Set overall_score 0-100.
+3. List concrete strengths, weaknesses, and 3 specific suggested fixes grounded in what the image shows.
+4. For EACH of these platforms — {", ".join(PLATFORMS)} — judge how well THIS image fits (aspect ratio/format, text-overlay norms, audience tone). Give a punchy one-sentence headline about THIS image on that platform, 2-3 concrete observations, and one specific recommendation.
+
+Return ONLY valid JSON, no extra text, in this exact shape:
+{{
+  "image_summary": "<1-2 sentences, literal>",
+  "overall_score": <0-100>,
+  "scores": {{
+    "visual_hook": <0-20>,
+    "composition": <0-20>,
+    "text_readability": <0-20>,
+    "brand_fit": <0-20>,
+    "platform_readiness": <0-20>
+  }},
+  "strengths": ["...", "..."],
+  "weaknesses": ["...", "..."],
+  "suggestions": ["...", "...", "..."],
+  "platforms": {{
+    "instagram": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "..." }},
+    "tiktok": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "..." }},
+    "twitter": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "..." }},
+    "youtube": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "..." }},
+    "linkedin": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "..." }},
+    "facebook": {{ "headline": "...", "patterns": ["...", "...", "..."], "recommendation": "..." }}
+  }}
+}}
+
+IMPORTANT: "platforms" must contain all 6 platforms listed above.
+"""
+
+    content = [
+        {"type": "text", "text": prompt_text},
+        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+    ]
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        max_tokens=1500,
+        response_format={"type": "json_object"},
+        messages=[{"role": "user", "content": content}]
+    )
+
+    raw = response.choices[0].message.content.strip()
+    raw = raw.replace("```json", "").replace("```", "").strip()
+    return json.loads(raw)

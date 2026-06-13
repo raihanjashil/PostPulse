@@ -40,7 +40,9 @@
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="insights">📊 Account Intelligence</button>
       <button class="tab-btn" data-tab="scorer">⚡ Post Scorer</button>
+      <button class="tab-btn" data-tab="image">🖼️ Image Analyzer</button>
       <button class="tab-btn" data-tab="video">🎬 Video Analyzer</button>
+      <button class="tab-btn" data-tab="campaign">🚀 Campaign Pack</button>
     </div>
 
     <!-- ======== TAB: POST SCORER ======== -->
@@ -201,13 +203,78 @@
         <div class="schedule-section">
           <div class="results-header">
             <h2>Optimal Posting Times</h2>
-            <p class="results-sub">AI-recommended for MENA audiences</p>
+            <p class="results-sub">Best weekly windows per platform (Gulf Standard Time)</p>
           </div>
           <div class="schedule-grid" id="schedule-grid"></div>
         </div>
 
       </section>
     </div><!-- /tab-scorer -->
+
+    <!-- ======== TAB: IMAGE ANALYZER ======== -->
+    <div id="tab-image" class="tab-pane hidden">
+      <section class="video-section">
+        <div class="results-header">
+          <h2>Image Analyzer</h2>
+          <p class="results-sub">Upload a poster or graphic — AI scores the visual before it goes live</p>
+        </div>
+        <div class="video-upload-area" id="image-upload-area">
+          <input type="file" id="image-file-input" accept="image/*" class="hidden">
+          <div class="upload-prompt" id="upload-prompt-image">
+            <span class="upload-icon">🖼️</span>
+            <span>Click to upload or drag &amp; drop</span>
+            <span class="upload-sub">PNG, JPG, WEBP — a poster, thumbnail, or graphic</span>
+          </div>
+          <div class="upload-selected hidden" id="upload-selected-image">
+            <span class="upload-icon">✅</span>
+            <span id="image-filename"></span>
+            <button class="btn-secondary" id="btn-clear-image">Change</button>
+          </div>
+        </div>
+        <div class="extra-inputs" style="margin-top:14px;">
+          <div class="extra-input-group">
+            <label class="extra-label" for="image-topic-input">Topic</label>
+            <input type="text" id="image-topic-input" value="science innovation" placeholder="e.g. science innovation">
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-analyze-image" style="margin-top:16px;" disabled>
+          <span class="btn-icon">🔍</span> Analyze Image
+        </button>
+
+        <div class="pipeline-steps hidden" id="image-loading">
+          <div class="pipeline-step" id="step-image-read">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Reading image</span>
+              <span class="step-detail">Resizing and encoding for the vision model</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-image-ai">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">AI vision analysis</span>
+              <span class="step-detail">GPT-4o-mini scoring the visual and platform fit</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="image-results" class="hidden">
+          <div id="image-preview"></div>
+          <div id="image-summary-card"></div>
+          <div class="detail-panel" style="margin-top:24px;">
+            <div class="detail-header">
+              <h3>Visual Score</h3>
+              <div class="detail-score-big" id="image-score">0</div>
+            </div>
+            <div class="detail-body">
+              <div class="detail-left"><div id="image-breakdown"></div></div>
+              <div class="detail-right"><div id="image-analysis"></div></div>
+            </div>
+          </div>
+          <div id="image-platform-fit"></div>
+        </div>
+      </section>
+    </div><!-- /tab-image -->
 
     <!-- ======== TAB: ACCOUNT INTELLIGENCE ======== -->
     <div id="tab-insights" class="tab-pane active">
@@ -234,8 +301,8 @@
             <input type="text" id="insights-twitter" placeholder="competitor handle, e.g. NASA">
           </div>
           <div class="extra-input-group">
-            <label class="extra-label" for="insights-youtube">▶️ YouTube channel ID</label>
-            <input type="text" id="insights-youtube" placeholder="competitor channel ID">
+            <label class="extra-label" for="insights-youtube">▶️ YouTube URL / handle</label>
+            <input type="text" id="insights-youtube" placeholder="youtube.com/@nasa or UC… ID">
           </div>
           <div class="extra-input-group">
             <label class="extra-label" for="insights-facebook">📘 Facebook page URL</label>
@@ -245,6 +312,10 @@
         <button class="btn-primary" id="btn-load-insights">
           <span class="btn-icon">📊</span> Load Account Intelligence
         </button>
+        <div id="insights-mock-banner" class="mock-banner hidden">
+          ⚠️ <strong>Demo data</strong> — the backend is unreachable, so these numbers are
+          <strong>fabricated</strong>, not real analytics. <span id="insights-mock-reason"></span>
+        </div>
         <div class="pipeline-steps hidden" id="insights-loading">
           <div class="pipeline-step" id="step-insights-fetch">
             <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
@@ -335,6 +406,64 @@
         </div>
       </section>
     </div><!-- /tab-video -->
+
+    <!-- ======== TAB: CAMPAIGN PACK ======== -->
+    <div id="tab-campaign" class="tab-pane hidden">
+      <section class="campaign-section">
+        <div class="results-header">
+          <h2>Campaign Pack</h2>
+          <p class="results-sub">From one idea to six platform-native posts — ready to publish in seconds</p>
+        </div>
+
+        <div class="input-box">
+          <textarea id="campaign-goal-input" dir="auto" placeholder="Describe your campaign goal...&#10;&#10;e.g. &quot;Season 17 applications open June 20 — drive young Arab innovators to apply&quot;"></textarea>
+        </div>
+        <div class="extra-inputs" style="margin-top:14px;">
+          <div class="extra-input-group">
+            <label class="extra-label" for="campaign-persona">Target audience</label>
+            <select id="campaign-persona">
+              <option value="general">🌍 General Audience</option>
+              <option value="applicants">🎓 Potential Applicants</option>
+              <option value="viewers">📺 Viewers &amp; Fans</option>
+              <option value="sponsors">🤝 Sponsors &amp; Partners</option>
+            </select>
+          </div>
+          <div class="extra-input-group">
+            <label class="extra-label" for="campaign-goal-select">Goal</label>
+            <select id="campaign-goal-select">
+              <option value="reach">📈 Maximize Reach</option>
+              <option value="engagement">💬 Maximize Engagement</option>
+              <option value="conversions">🎯 Maximize Conversions</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-generate-campaign" style="margin-top:16px;">
+          <span class="btn-icon">🚀</span> Generate Campaign Pack
+        </button>
+
+        <div class="pipeline-steps hidden" id="campaign-loading">
+          <div class="pipeline-step" id="step-campaign-plan">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Planning the campaign</span>
+              <span class="step-detail">Aligning angle, persona, and posting windows</span>
+            </div>
+          </div>
+          <div class="pipeline-step waiting" id="step-campaign-ai">
+            <div class="step-indicator"><div class="step-spinner"></div><div class="step-check hidden">✓</div></div>
+            <div class="step-info">
+              <span class="step-label">Writing 6 platform-native posts</span>
+              <span class="step-detail">GPT-4o-mini drafting bilingual posts per platform</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="campaign-results" class="hidden">
+          <div id="campaign-overall" class="insights-overall hidden"></div>
+          <div id="campaign-grid" class="campaign-grid"></div>
+        </div>
+      </section>
+    </div><!-- /tab-campaign -->
 
   </main>
 

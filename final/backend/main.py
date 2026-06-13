@@ -11,7 +11,7 @@ import publish
 import sessions as sessions_module
 import platform_config as cfg_module
 import video_analyzer
-from scorer import score_post, score_all_platforms, recommend_publishing, generate_account_insights
+from scorer import score_post, score_all_platforms, recommend_publishing, generate_account_insights, generate_campaign_pack
 
 app = FastAPI(title="SoS Content Scorer API")
 
@@ -35,6 +35,11 @@ class ScoreRequest(BaseModel):
 class PublishRequest(BaseModel):
     platform: str
     text: str
+
+class CampaignRequest(BaseModel):
+    campaign_goal: str
+    persona: str = "general"  # "general" | "applicants" | "viewers" | "sponsors"
+    goal: str = "reach"       # "reach" | "engagement" | "conversions"
 
 # ---- Health ----
 
@@ -169,6 +174,12 @@ def insights(
     }
     return generate_account_insights(identifiers)
 
+# ---- Campaign Pack ----
+
+@app.post("/campaign")
+def campaign(req: CampaignRequest):
+    return generate_campaign_pack(req.campaign_goal, req.persona, req.goal)
+
 # ---- Video Analyzer ----
 
 @app.post("/analyze-video")
@@ -181,6 +192,23 @@ async def analyze_video_endpoint(
         tmp_path = tmp.name
     try:
         result = video_analyzer.analyze_video(tmp_path, topic)
+    finally:
+        os.unlink(tmp_path)
+    return result
+
+# ---- Image Analyzer ----
+
+@app.post("/analyze-image")
+async def analyze_image_endpoint(
+    file: UploadFile = File(...),
+    topic: str = Form(default="science innovation"),
+):
+    suffix = os.path.splitext(file.filename or "")[1] or ".jpg"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+    try:
+        result = video_analyzer.analyze_image(tmp_path, topic)
     finally:
         os.unlink(tmp_path)
     return result

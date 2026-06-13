@@ -137,8 +137,10 @@ function init() {
   checkBackendHealth();
   initTabs();
   initVideoUpload();
+  initImageUpload();
 
   $('btn-load-insights')?.addEventListener('click', onLoadInsights);
+  $('btn-generate-campaign')?.addEventListener('click', onGenerateCampaign);
 
   // Gear button toggles the Connected Accounts panel
   const btnSettings = $('btn-settings');
@@ -372,6 +374,14 @@ function resetPipeline() {
 }
 function activateStep(el) { el.classList.remove('waiting'); el.classList.add('active'); }
 function completeStep(el) { el.classList.remove('active'); el.classList.add('done'); }
+function resetStep(el) {
+  if (!el) return;
+  el.classList.remove('active', 'done');
+  el.classList.add('waiting');
+  el.querySelector('.step-check')?.classList.add('hidden');
+  const s = el.querySelector('.step-spinner');
+  if (s) s.style.display = '';
+}
 
 // ---- MAIN ANALYZE FLOW ----
 async function onAnalyze() {
@@ -834,25 +844,57 @@ function renderAudienceTabs(variants, activeIdx, showAlt = false) {
   });
 }
 
+// ---- POSTING-TIME HEATMAP ----
+// Mirror of backend OPTIMAL_POSTING_TIMES, pre-bucketed into time-of-day columns.
+const HEAT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const HEAT_BUCKETS = [
+  ['early', '🌅 6–9a'],
+  ['lateam', '☀️ 9–12'],
+  ['midday', '🌤️ 12–3'],
+  ['afternoon', '🌇 3–6'],
+  ['evening', '🌆 6–9p'],
+  ['night', '🌙 9p+'],
+];
+const POSTING_HEATMAP = {
+  instagram: { days: ['Tue', 'Wed', 'Fri'], buckets: ['early', 'midday', 'afternoon', 'evening'], note: 'Thursday evening high engagement pre-weekend in Gulf' },
+  linkedin:  { days: ['Tue', 'Wed', 'Thu'], buckets: ['early', 'midday', 'afternoon'], note: 'Avoid Fri–Sat — MENA weekend, low B2B traffic' },
+  tiktok:    { days: ['Tue', 'Thu', 'Fri'], buckets: ['early', 'lateam', 'evening'], note: 'Friday night peak across the Gulf region' },
+  youtube:   { days: ['Thu', 'Fri', 'Sat'], buckets: ['midday', 'afternoon', 'evening', 'night'], note: 'Saturday afternoon peak for MENA viewership' },
+  twitter:   { days: ['Mon', 'Wed', 'Fri'], buckets: ['early', 'lateam', 'midday'], note: 'News cycle peaks at 9am Gulf Standard Time' },
+  facebook:  { days: ['Wed', 'Thu', 'Fri'], buckets: ['midday', 'evening'], note: 'Friday afternoon and evening peak across the Gulf' },
+};
+
 function renderSchedule() {
   scheduleGrid.innerHTML = '';
-  const res = state.results.results || {};
 
-  state.platforms.forEach(pid => {
-    const data = res[pid];
-    const p = PLATFORMS[pid];
-    if (!p || !data || data.error) return;
+  // Header row: blank corner + bucket labels
+  let html = '<div class="heatmap">';
+  html += '<div class="hm-corner"></div>';
+  HEAT_BUCKETS.forEach(([, label]) => { html += `<div class="hm-head">${label}</div>`; });
 
-    const time = data.best_time_to_post || '—';
-    const card = document.createElement('div');
-    card.className = 'schedule-card';
-    card.innerHTML = `
-      <div class="schedule-platform">${p.name}</div>
-      <div class="schedule-time">${time}</div>
-      <div class="schedule-note">Gulf Standard Time</div>
-    `;
-    scheduleGrid.appendChild(card);
+  // One row per day; each cell collects platforms active in that (day, bucket)
+  HEAT_DAYS.forEach(day => {
+    html += `<div class="hm-day">${day}</div>`;
+    HEAT_BUCKETS.forEach(([bucket]) => {
+      const hits = Object.entries(POSTING_HEATMAP)
+        .filter(([, cfg]) => cfg.days.includes(day) && cfg.buckets.includes(bucket))
+        .map(([pid]) => pid);
+      const level = Math.min(hits.length, 3);
+      const icons = hits.map(pid => `<span title="${PLATFORMS[pid]?.name || pid}">${PLATFORMS[pid]?.icon || ''}</span>`).join('');
+      html += `<div class="hm-cell hm-${level}">${icons}</div>`;
+    });
   });
+  html += '</div>';
+
+  // Legend with per-platform MENA notes
+  html += '<div class="hm-legend">';
+  Object.entries(POSTING_HEATMAP).forEach(([pid, cfg]) => {
+    const p = PLATFORMS[pid];
+    html += `<span class="hm-legend-item" title="${cfg.note}">${p?.icon || ''} ${p?.name || pid}</span>`;
+  });
+  html += '</div>';
+
+  scheduleGrid.innerHTML = html;
 }
 
 // ---- ONE-CLICK PUBLISH ----
@@ -864,18 +906,23 @@ async function onPublish(platform) {
     && confirm(`Publish the AI-rewritten version to ${PLATFORMS[platform].name}?\n\nOK = AI rewrite\nCancel = your original draft`);
   const textToPost = useRewrite ? data.rewritten : state.draft;
 
-  // Disable all publish buttons for this platform while posting
   const btns = [
     scoreGrid.querySelector(`.btn-publish[data-platform="${platform}"]`),
     $(`btn-publish-detail-${platform}`),
   ].filter(Boolean);
+
+  await publishText(platform, textToPost, btns);
+}
+
+// Core publish call — shared by the Post Scorer detail panel and Campaign Pack cards.
+async function publishText(platform, text, btns = []) {
   btns.forEach(b => { b.disabled = true; b.textContent = 'Publishing…'; });
 
   try {
     const res = await apiFetch('/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform, text: textToPost }),
+      body: JSON.stringify({ platform, text }),
     });
 
     if (res.ok) {
@@ -885,14 +932,17 @@ async function onPublish(platform) {
         b.textContent = 'Published ✓';
         b.style.background = 'var(--green)';
       });
+      return true;
     } else {
       const err = await res.json().catch(() => ({}));
       showToast(`Publish failed: ${err.detail || 'Unknown error'}`, 'error');
       btns.forEach(b => { b.disabled = false; b.textContent = 'Publish'; b.style.background = ''; });
+      return false;
     }
   } catch {
     showToast('Network error — publish failed', 'error');
     btns.forEach(b => { b.disabled = false; b.textContent = 'Publish'; b.style.background = ''; });
+    return false;
   }
 }
 
@@ -971,6 +1021,11 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 function rand(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function fmtNum(n) { if (n == null) return '—'; return n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 function isArabic(text) { return /[؀-ۿ]/.test(text || ''); }
 function applyDir(el, text) {
   if (!el) return;
@@ -981,6 +1036,36 @@ function applyDir(el, text) {
     el.removeAttribute('dir');
     el.classList.remove('rtl');
   }
+}
+
+// ---- Real Growth vs. Noise: two-axis tiers ----
+// Below this many avg likes, comments-per-100-likes is statistical noise.
+const MIN_LIKES_FOR_RATE = 50;
+
+function reachTier(likes) {
+  if (likes >= 100000) return { label: 'Huge',   level: 5 };
+  if (likes >= 10000)  return { label: 'Large',  level: 4 };
+  if (likes >= 1000)   return { label: 'Medium', level: 3 };
+  if (likes >= 100)    return { label: 'Small',  level: 2 };
+  return { label: 'Tiny', level: 1 };
+}
+
+function conversationTier(m) {
+  if ((m.avg_likes || 0) < MIN_LIKES_FOR_RATE) {
+    return { label: 'Not enough data', level: 0, cls: 'conv-none', weak: true };
+  }
+  const r = m.comment_rate || 0;
+  if (r >= 5) return { label: 'Deep',     level: 3, cls: 'conv-deep' };
+  if (r >= 1) return { label: 'Moderate', level: 2, cls: 'conv-moderate' };
+  return { label: 'Shallow', level: 1, cls: 'conv-shallow' };
+}
+
+// Whose account a given Account-Intelligence row reflects (typed handle vs SoS default).
+function sourceLabel(pid) {
+  const v = lastInsightsSources[pid];
+  if (!v) return 'Stars of Science (default)';
+  const short = v.length > 28 ? v.slice(0, 28) + '…' : v;
+  return (pid === 'youtube' || pid === 'facebook') ? short : '@' + short.replace(/^@/, '');
 }
 
 function showToast(msg, type = 'success') {
@@ -1113,6 +1198,17 @@ function initTabs() {
 // ACCOUNT INTELLIGENCE
 // =============================
 
+// Maps platform -> the handle the user typed (or null = SoS default). The 5 input
+// fields cover ig/tiktok/twitter/youtube/facebook; linkedin has no field.
+const INSIGHTS_FIELDS = {
+  instagram: 'insights-instagram',
+  tiktok: 'insights-tiktok',
+  twitter: 'insights-twitter',
+  youtube: 'insights-youtube',
+  facebook: 'insights-facebook',
+};
+let lastInsightsSources = {};
+
 async function onLoadInsights() {
   const btn        = $('btn-load-insights');
   const loadingEl  = $('insights-loading');
@@ -1120,6 +1216,12 @@ async function onLoadInsights() {
   const overallEl  = $('insights-overall');
   const stepFetch  = $('step-insights-fetch');
   const stepAI     = $('step-insights-ai');
+
+  // Capture which platforms the user typed a handle for (vs SoS default fallback)
+  lastInsightsSources = {};
+  Object.entries(INSIGHTS_FIELDS).forEach(([platform, inputId]) => {
+    lastInsightsSources[platform] = $(inputId)?.value.trim() || null;
+  });
 
   btn.disabled = true;
   btn.textContent = 'Loading…';
@@ -1139,19 +1241,11 @@ async function onLoadInsights() {
   });
 
   try {
-    let data;
+    let data, usedMock = false, mockReason = '';
     if (state.backendLive) {
       activateStep(stepFetch);
-      const identifierFields = {
-        instagram: 'insights-instagram',
-        tiktok: 'insights-tiktok',
-        twitter: 'insights-twitter',
-        youtube: 'insights-youtube',
-        facebook: 'insights-facebook',
-      };
       const params = new URLSearchParams();
-      Object.entries(identifierFields).forEach(([platform, inputId]) => {
-        const val = $(inputId)?.value.trim();
+      Object.entries(lastInsightsSources).forEach(([platform, val]) => {
         if (val) params.set(platform, val);
       });
       const qs = params.toString();
@@ -1162,6 +1256,8 @@ async function onLoadInsights() {
       data = await res.json();
       completeStep(stepAI);
     } else {
+      usedMock = true;
+      mockReason = 'The backend server isn’t running.';
       await delay(800);
       activateStep(stepFetch);
       await delay(600);
@@ -1169,15 +1265,18 @@ async function onLoadInsights() {
       activateStep(stepAI);
       await delay(800);
       completeStep(stepAI);
-      data = generateMockInsights();
+      data = generateMockInsights(lastInsightsSources);
     }
 
     loadingEl.classList.add('hidden');
-    renderInsights(data);
-    showToast('Account Intelligence loaded');
+    renderInsights(data, { mock: usedMock, reason: mockReason });
+    if (!usedMock) showToast('Account Intelligence loaded');
   } catch {
     loadingEl.classList.add('hidden');
-    renderInsights(generateMockInsights());
+    renderInsights(generateMockInsights(lastInsightsSources), {
+      mock: true,
+      reason: 'The live request failed (network or API error).',
+    });
     showToast('Using mock insights data', 'warn');
   }
 
@@ -1185,118 +1284,258 @@ async function onLoadInsights() {
   btn.innerHTML = '<span class="btn-icon">🔄</span> Refresh Intelligence';
 }
 
-function renderInsights(data) {
+// Account Intelligence targets these 5 (LinkedIn has no scraper — excluded).
+const INSIGHTS_PLATFORMS = ['instagram', 'tiktok', 'twitter', 'youtube', 'facebook'];
+
+// Map the backend's per-platform engagement_quality to the Conversation axis.
+const QUALITY_CONV = {
+  high:   { label: 'Deep',     level: 3, cls: 'conv-deep' },
+  medium: { label: 'Moderate', level: 2, cls: 'conv-moderate' },
+  low:    { label: 'Shallow',  level: 1, cls: 'conv-shallow' },
+};
+function conversationFromStats(stats) {
+  if ((stats.avg_likes || 0) < MIN_LIKES_FOR_RATE) {
+    return { label: 'Not enough data', level: 0, cls: 'conv-none', weak: true };
+  }
+  return QUALITY_CONV[stats.engagement_quality] || QUALITY_CONV.low;
+}
+
+function fmtFollowers(v) {
+  if (v == null) return null;
+  return typeof v === 'number' ? `${fmtNum(v)} followers` : escapeHtml(String(v));
+}
+
+function renderAcctColumn(stats) {
+  if (!stats) return '';
+  const name = stats.is_default ? 'Stars of Science' : escapeHtml(stats.handle || 'Account');
+  if (!stats.has_data) {
+    return `<div class="acct-col">
+      <div class="acct-name">${name}</div>
+      <div class="acct-error">⚠️ ${escapeHtml(stats.error || 'no data')}</div>
+    </div>`;
+  }
+  const reach = reachTier(stats.avg_likes || 0);
+  const conv  = conversationFromStats(stats);
+  const convValue = conv.weak ? '—' : `${conv.label} · ${stats.comment_rate}/100 likes`;
+  const chips = [fmtFollowers(stats.follower_count), stats.engagement_rate != null ? `${stats.engagement_rate}% eng. rate` : null]
+    .filter(Boolean).map(c => `<span class="acct-chip">${c}</span>`).join('');
+  return `<div class="acct-col">
+    <div class="acct-name">${name}</div>
+    ${chips ? `<div class="acct-chips">${chips}</div>` : ''}
+    <div class="axis">
+      <span class="axis-label">Reach</span>
+      <div class="axis-bar"><div class="axis-fill reach" style="width:${(reach.level / 5) * 100}%"></div></div>
+      <span class="axis-value">${reach.label} · ${fmtNum(stats.avg_likes)} likes</span>
+    </div>
+    <div class="axis">
+      <span class="axis-label">Conversation</span>
+      <div class="axis-bar"><div class="axis-fill ${conv.cls}" style="width:${(conv.level / 3) * 100}%"></div></div>
+      <span class="axis-value" title="${stats.avg_comments || 0} avg comments/post">${convValue}</span>
+    </div>
+  </div>`;
+}
+
+function renderTopPosts(sos, competitor) {
+  const block = (stats) => {
+    const tp = (stats && stats.top_posts) || [];
+    if (!tp.length) return '';
+    const who = stats.is_default ? 'Stars of Science' : escapeHtml(stats.handle || 'Account');
+    const items = tp.map(post => `
+      <div class="insight-post">
+        <div class="insight-post-caption">${escapeHtml(post.caption || '(no caption)')}</div>
+        <div class="insight-post-stats">❤ ${fmtNum(post.likes || 0)} · 💬 ${fmtNum(post.comments || 0)}${post.views != null ? ` · ▶ ${fmtNum(post.views)}` : ''}</div>
+      </div>`).join('');
+    return `<div class="insight-posts-group"><div class="insight-posts-who">${who}</div>${items}</div>`;
+  };
+  const out = block(sos) + (competitor ? block(competitor) : '');
+  return out ? `<div class="insight-posts"><div class="insight-posts-label">Top posts (real data)</div>${out}</div>` : '';
+}
+
+function renderInsights(data, opts = {}) {
   const gridEl    = $('insights-grid');
   const overallEl = $('insights-overall');
   const growthEl  = $('insights-growth');
+  const banner    = $('insights-mock-banner');
   gridEl.innerHTML = '';
+
+  // Persistent mock-mode banner — fabricated data must never masquerade as real
+  if (banner) {
+    if (opts.mock) {
+      const reasonEl = $('insights-mock-reason');
+      if (reasonEl) reasonEl.textContent = opts.reason || '';
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
 
   if (data.overall_strategy) {
     overallEl.innerHTML = `
       <div class="overall-strategy-card">
         <div class="overall-strategy-label">🎯 Cross-Platform Strategy</div>
-        <div class="overall-strategy-text">${data.overall_strategy}</div>
-      </div>
-    `;
+        <div class="overall-strategy-text">${escapeHtml(data.overall_strategy)}</div>
+      </div>`;
     overallEl.classList.remove('hidden');
+  } else {
+    overallEl.classList.add('hidden');
   }
 
-  // ---- Real Growth vs. Noise ----
-  if (growthEl && data.metrics) {
-    const rows = Object.entries(PLATFORMS).map(([pid, p]) => {
-      const m = data.metrics[pid];
-      if (!m) return '';
-      const verdict = data.platforms?.[pid]?.growth_verdict || '';
-      if (!m.has_data) {
-        return `
-          <div class="growth-row no-data">
-            <span class="growth-platform">${p.icon} ${p.name}</span>
-            <span class="growth-verdict">No data available for this account</span>
-          </div>
-        `;
-      }
+  // ---- Real Growth vs. Noise (side-by-side SoS vs competitor) ----
+  const accounts = data.accounts || {};
+  if (growthEl && Object.keys(accounts).length) {
+    const rows = INSIGHTS_PLATFORMS.map(pid => {
+      const p = PLATFORMS[pid];
+      const acc = accounts[pid] || {};
+      const cols = [renderAcctColumn(acc.sos)];
+      if (acc.competitor) cols.push(renderAcctColumn(acc.competitor));
       return `
         <div class="growth-row">
-          <span class="growth-platform">${p.icon} ${p.name}</span>
-          <span class="growth-reach">${fmtNum(m.avg_likes)} <small>avg likes</small></span>
-          <span class="engagement-badge ${m.engagement_quality}">${m.engagement_quality} engagement</span>
-          <span class="growth-verdict">${verdict}</span>
-        </div>
-      `;
+          <div class="growth-head"><span class="growth-platform">${p.icon} ${p.name}</span></div>
+          <div class="acct-compare cols-${cols.length}">${cols.join('')}</div>
+        </div>`;
     }).join('');
 
     growthEl.innerHTML = `
       <div class="growth-card">
         <div class="growth-title">📊 Real Growth vs. Noise</div>
-        ${data.real_growth_summary ? `<div class="growth-summary">${data.real_growth_summary}</div>` : ''}
+        <div class="growth-explainer">Reach = audience size (likes). Conversation = how often people actually comment (per 100 likes, judged per platform). Engagement rate = (likes + comments) ÷ followers. Big reach + shallow conversation = vanity; small but deep = real community.</div>
+        ${data.real_growth_summary ? `<div class="growth-summary">${escapeHtml(data.real_growth_summary)}</div>` : ''}
         <div class="growth-rows">${rows}</div>
-      </div>
-    `;
+      </div>`;
     growthEl.classList.remove('hidden');
   } else if (growthEl) {
     growthEl.classList.add('hidden');
     growthEl.innerHTML = '';
   }
 
+  // ---- Per-platform insight cards (grounded, comparative, with real posts) ----
   const platformsData = data.platforms || {};
-  Object.entries(PLATFORMS).forEach(([pid, p]) => {
+  INSIGHTS_PLATFORMS.forEach(pid => {
+    const p = PLATFORMS[pid];
     const insight = platformsData[pid];
     if (!insight) return;
+    const acc = accounts[pid] || {};
 
     const card = document.createElement('div');
     card.className = 'insight-card';
+
+    if (insight.error) {
+      card.innerHTML = `
+        <div class="insight-platform-header">
+          <span class="insight-platform-icon">${p.icon}</span>
+          <span class="insight-platform-name">${p.name}</span>
+        </div>
+        <div class="insight-error">⚠️ ${escapeHtml(insight.error)}</div>`;
+      gridEl.appendChild(card);
+      return;
+    }
+
+    const sourceLine = acc.competitor
+      ? `${escapeHtml((acc.sos && acc.sos.handle) ? 'Stars of Science' : 'Stars of Science')} vs ${escapeHtml(acc.competitor.handle || 'competitor')}`
+      : 'Stars of Science';
+    const comparison = insight.comparison ? `<div class="insight-comparison">⚖️ ${escapeHtml(insight.comparison)}</div>` : '';
+    const verdict = insight.growth_verdict ? `<div class="insight-verdict">${escapeHtml(insight.growth_verdict)}</div>` : '';
+
     card.innerHTML = `
       <div class="insight-platform-header">
         <span class="insight-platform-icon">${p.icon}</span>
         <span class="insight-platform-name">${p.name}</span>
+        <span class="insight-source">${sourceLine}</span>
       </div>
-      <div class="insight-headline">${insight.headline || '—'}</div>
+      <div class="insight-headline">${escapeHtml(insight.headline || '—')}</div>
+      ${comparison}
       <div class="insight-patterns-label">Key Patterns</div>
       <ul class="insight-patterns">
-        ${(insight.patterns || []).map(pat => `<li>${pat}</li>`).join('')}
+        ${(insight.patterns || []).map(pat => `<li>${escapeHtml(pat)}</li>`).join('')}
       </ul>
       <div class="insight-recommendation">
         <span class="insight-rec-label">Recommendation</span>
-        <div class="insight-rec-text">${insight.recommendation || '—'}</div>
+        <div class="insight-rec-text">${escapeHtml(insight.recommendation || '—')}</div>
       </div>
+      ${verdict}
+      ${renderTopPosts(acc.sos, acc.competitor)}
     `;
     gridEl.appendChild(card);
   });
 }
 
-function generateMockInsights() {
+// Per-platform mock comment-rate thresholds (mirror of the backend) so labels look right.
+const COMMENT_RATE_MOCK = {
+  instagram: [1.5, 0.5], tiktok: [1, 0.3], twitter: [10, 3], youtube: [2, 0.5], facebook: [3, 1],
+};
+
+function generateMockInsights(sources = {}) {
+  const accounts = {};
   const platforms = {};
-  const metrics = {};
-  Object.entries(PLATFORMS).forEach(([pid, p]) => {
-    const avgLikes = rand(200, 2500);
-    const avgComments = rand(5, 80);
+
+  const mkStats = (pid, handle, isDefault) => {
+    const tiny = pid === 'facebook' && isDefault;   // show the small-sample guard offline
+    const avgLikes = tiny ? 18 : rand(200, 4000);
+    const avgComments = tiny ? 1 : rand(5, 120);
     const commentRate = avgLikes > 0 ? Math.round((avgComments / avgLikes) * 10000) / 100 : 0;
-    const quality = commentRate >= 5 ? 'high' : commentRate >= 1 ? 'medium' : 'low';
-    metrics[pid] = {
+    const [hi, med] = COMMENT_RATE_MOCK[pid] || [5, 1];
+    const quality = commentRate >= hi ? 'high' : commentRate >= med ? 'medium' : 'low';
+    const followers = rand(3000, 2000000);
+    const isVideo = pid === 'tiktok' || pid === 'youtube';
+    return {
+      platform: pid,
+      handle: isDefault ? 'Stars of Science (default)' : handle,
+      is_default: isDefault,
+      has_data: true,
+      error: null,
+      post_count: 10,
+      follower_count: followers,
       avg_likes: avgLikes,
       avg_comments: avgComments,
+      avg_views: isVideo ? rand(2000, 600000) : null,
+      avg_retweets: pid === 'twitter' ? rand(2, 200) : null,
+      avg_caption_len: rand(40, 180),
+      avg_hashtags: rand(0, 6),
       comment_rate: commentRate,
       engagement_quality: quality,
-      has_data: true,
+      engagement_rate: Math.round(((avgLikes + avgComments) / followers) * 100 * 100) / 100,
+      top_posts: [1, 2, 3].map(i => ({
+        caption: `[Mock] ${PLATFORMS[pid].name} post ${i} — a science moment that did numbers`,
+        likes: avgLikes + rand(50, 2000),
+        comments: avgComments + rand(1, 60),
+        views: isVideo ? rand(5000, 900000) : null,
+        retweets: null,
+        hashtags: ['#StarsOfScience', '#Innovation'].slice(0, rand(0, 2)),
+      })),
     };
+  };
+
+  INSIGHTS_PLATFORMS.forEach(pid => {
+    const p = PLATFORMS[pid];
+    const competitorHandle = sources[pid];
+    accounts[pid] = {
+      sos: mkStats(pid, null, true),
+      competitor: competitorHandle ? mkStats(pid, '@' + String(competitorHandle).replace(/^@/, ''), false) : null,
+    };
+    const tiny = pid === 'facebook';
     platforms[pid] = {
-      headline: `[Mock] ${p.name} rewards posts with strong visual hooks and consistent posting cadence`,
+      headline: `[Mock] ${p.name} rewards curiosity-driven hooks`,
       patterns: [
-        '[Mock] Posts with questions get 2-3x more comments',
-        '[Mock] First line decides reach — emoji-led performs better',
-        '[Mock] Science curiosity hooks outperform announcement posts',
+        '[Mock] Top posts run longer captions than the account average',
+        '[Mock] Posts framed as questions lift comments',
+        '[Mock] Best posts keep hashtags modest',
       ],
-      recommendation: `[Mock] Open every ${p.name} post with a surprising stat or question.`,
-      growth_verdict: quality === 'low'
-        ? `[Mock] Big reach but shallow — only ${commentRate} comments per 100 likes. Vanity numbers.`
-        : `[Mock] This audience talks back — ${commentRate} comments per 100 likes is a real community signal.`,
+      recommendation: `[Mock] Lead every ${p.name} post with a surprising stat or question.`,
+      growth_verdict: tiny
+        ? '[Mock] Too few likes to read conversation reliably.'
+        : '[Mock] Healthy comment rate — this looks like real conversation, not just reach.',
+      comparison: competitorHandle
+        ? `[Mock] vs @${String(competitorHandle).replace(/^@/, '')}: comparable reach, but SoS edges ahead on comment rate.`
+        : null,
     };
   });
+
   return {
     platforms,
-    metrics,
-    overall_strategy: '[Mock] Across all platforms, curiosity-driven hooks and clear CTAs drive the most consistent engagement. Post consistently on Tue/Wed in the Gulf evening window (6–9pm GST).',
-    real_growth_summary: '[Mock] The real engaged community lives where the comment rate is highest — chase conversations, not just impressions. Big like counts with silent comment sections are vanity reach.',
+    accounts,
+    overall_strategy: '[Mock] Lead with curiosity hooks across platforms and chase comments, not just likes.',
+    real_growth_summary: '[Mock] The real community lives where the comment rate is highest; platforms with big likes but quiet comment sections are vanity reach.',
+    generated_at: 'mock',
   };
 }
 
@@ -1562,6 +1801,386 @@ function generateMockVideoResults() {
       'End with an explicit CTA screen',
     ],
     platforms,
+  };
+}
+
+// =============================
+// IMAGE ANALYZER
+// =============================
+
+let selectedImageFile = null;
+let imagePreviewUrl = null;
+
+const IMAGE_CRITERIA = [
+  { key: 'visual_hook',        label: 'Visual Hook' },
+  { key: 'composition',        label: 'Composition' },
+  { key: 'text_readability',   label: 'Text Readability' },
+  { key: 'brand_fit',          label: 'Brand Fit' },
+  { key: 'platform_readiness', label: 'Platform Readiness' },
+];
+
+function initImageUpload() {
+  const area       = $('image-upload-area');
+  const fileInput  = $('image-file-input');
+  const prompt     = $('upload-prompt-image');
+  const selected   = $('upload-selected-image');
+  const fileLabel  = $('image-filename');
+  const analyzeBtn = $('btn-analyze-image');
+  const clearBtn   = $('btn-clear-image');
+  if (!area) return;
+
+  area.addEventListener('click', e => {
+    if (clearBtn && (e.target === clearBtn || clearBtn.contains(e.target))) return;
+    fileInput.click();
+  });
+  area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('drag-over'); });
+  area.addEventListener('dragleave', () => area.classList.remove('drag-over'));
+  area.addEventListener('drop', e => {
+    e.preventDefault();
+    area.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file) setImageFile(file);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files?.[0]) setImageFile(fileInput.files[0]);
+  });
+  clearBtn?.addEventListener('click', e => {
+    e.stopPropagation();
+    selectedImageFile = null;
+    if (imagePreviewUrl) { URL.revokeObjectURL(imagePreviewUrl); imagePreviewUrl = null; }
+    fileInput.value = '';
+    prompt.classList.remove('hidden');
+    selected.classList.add('hidden');
+    analyzeBtn.disabled = true;
+    $('image-results')?.classList.add('hidden');
+  });
+
+  function setImageFile(file) {
+    selectedImageFile = file;
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    imagePreviewUrl = URL.createObjectURL(file);
+    if (fileLabel) fileLabel.textContent = file.name;
+    prompt.classList.add('hidden');
+    selected.classList.remove('hidden');
+    analyzeBtn.disabled = false;
+  }
+
+  analyzeBtn?.addEventListener('click', onAnalyzeImage);
+}
+
+async function onAnalyzeImage() {
+  if (!selectedImageFile) return;
+
+  const analyzeBtn = $('btn-analyze-image');
+  const loadingEl  = $('image-loading');
+  const resultsEl  = $('image-results');
+  const stepRead   = $('step-image-read');
+  const stepAI     = $('step-image-ai');
+
+  analyzeBtn.disabled = true;
+  analyzeBtn.innerHTML = '<span class="btn-icon">⏳</span> Analyzing…';
+  loadingEl.classList.remove('hidden');
+  resultsEl.classList.add('hidden');
+  [stepRead, stepAI].forEach(resetStep);
+
+  try {
+    let data;
+    if (state.backendLive) {
+      activateStep(stepRead);
+      const formData = new FormData();
+      formData.append('file', selectedImageFile);
+      formData.append('topic', $('image-topic-input')?.value || 'science innovation');
+      const res = await apiFetch('/analyze-image', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      completeStep(stepRead);
+      activateStep(stepAI);
+      data = await res.json();
+      completeStep(stepAI);
+    } else {
+      await delay(500); activateStep(stepRead);
+      await delay(700); completeStep(stepRead); activateStep(stepAI);
+      await delay(800); completeStep(stepAI);
+      data = generateMockImageResults();
+    }
+    if (data.error) throw new Error(data.error);
+
+    loadingEl.classList.add('hidden');
+    renderImageResults(data);
+    resultsEl.classList.remove('hidden');
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch {
+    loadingEl.classList.add('hidden');
+    renderImageResults(generateMockImageResults());
+    resultsEl.classList.remove('hidden');
+    showToast('Using mock image analysis (backend error)', 'warn');
+  }
+
+  analyzeBtn.disabled = false;
+  analyzeBtn.innerHTML = '<span class="btn-icon">🔍</span> Analyze Image';
+}
+
+function renderImageResults(data) {
+  // ---- Preview (uses the locally selected file; backend doesn't echo the image) ----
+  const previewEl = $('image-preview');
+  if (previewEl) {
+    previewEl.innerHTML = imagePreviewUrl
+      ? `<img class="image-preview-img" src="${imagePreviewUrl}" alt="Uploaded image">`
+      : '';
+  }
+
+  // ---- Summary ----
+  $('image-summary-card').innerHTML = `
+    <div class="video-summary-card">
+      <div class="vsummary-header"><span class="vsummary-title">🖼️ Image Summary</span></div>
+      <div class="vsummary-description">${data.image_summary || '—'}</div>
+    </div>
+  `;
+
+  // ---- Score + breakdown ----
+  $('image-score').textContent = data.overall_score ?? 0;
+  const breakdownEl = $('image-breakdown');
+  breakdownEl.innerHTML = '<div class="section-label">Visual Breakdown</div>';
+  const scores = data.scores || {};
+  IMAGE_CRITERIA.forEach(c => {
+    const val = scores[c.key] || 0;
+    const pct = (val / 20) * 100;
+    const color = pct >= 70 ? 'var(--green)' : pct >= 40 ? 'var(--orange)' : 'var(--red)';
+    breakdownEl.innerHTML += `
+      <div class="breakdown-row">
+        <span class="breakdown-label">${c.label}</span>
+        <div class="breakdown-bar-wrap">
+          <div class="breakdown-bar-bg"><div class="breakdown-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+          <span class="breakdown-score" style="color:${color}">${val}/20</span>
+        </div>
+      </div>`;
+  });
+
+  // ---- Strengths / weaknesses / suggestions ----
+  const analysisEl = $('image-analysis');
+  analysisEl.innerHTML = '<div class="section-label">AI Analysis</div>';
+  (data.strengths || []).forEach(s => {
+    analysisEl.innerHTML += `<div class="suggestion-item"><div class="suggestion-icon good">✓</div><span class="suggestion-text">${s}</span></div>`;
+  });
+  (data.weaknesses || []).forEach(w => {
+    analysisEl.innerHTML += `<div class="suggestion-item"><div class="suggestion-icon tip">!</div><span class="suggestion-text">${w}</span></div>`;
+  });
+  (data.suggestions || []).forEach(s => {
+    analysisEl.innerHTML += `<div class="suggestion-item"><div class="suggestion-icon fix">→</div><span class="suggestion-text">${s}</span></div>`;
+  });
+
+  // ---- Platform fit (reuse the video platform-fit grid) ----
+  const platformEl = $('image-platform-fit');
+  platformEl.innerHTML = '';
+  if (data.platforms) {
+    const headerEl = document.createElement('div');
+    headerEl.className = 'results-header';
+    headerEl.style.marginTop = '32px';
+    headerEl.innerHTML = '<h2>Platform Fit</h2><p class="results-sub">How this image lands on each platform</p>';
+    platformEl.appendChild(headerEl);
+
+    const gridEl = document.createElement('div');
+    gridEl.className = 'video-platform-grid';
+    platformEl.appendChild(gridEl);
+
+    Object.entries(PLATFORMS).forEach(([pid, p]) => {
+      const fit = data.platforms[pid];
+      if (!fit) return;
+      const card = document.createElement('div');
+      card.className = 'platform-fit-card';
+      card.innerHTML = `
+        <div class="pfit-header"><span class="pfit-icon">${p.icon}</span><span class="pfit-name">${p.name}</span></div>
+        <div class="pfit-headline">${fit.headline || '—'}</div>
+        <ul class="pfit-patterns">${(fit.patterns || []).map(pat => `<li>${pat}</li>`).join('')}</ul>
+        <div class="pfit-recommendation">💡 ${fit.recommendation || '—'}</div>
+      `;
+      gridEl.appendChild(card);
+    });
+  }
+}
+
+function generateMockImageResults() {
+  const platforms = {};
+  Object.entries(PLATFORMS).forEach(([pid, p]) => {
+    platforms[pid] = {
+      headline: `[Mock] This visual works on ${p.name} with the right crop.`,
+      patterns: [
+        '[Mock] Clear focal subject',
+        '[Mock] Text legibility is borderline at small sizes',
+        '[Mock] Colors fit a science / innovation brand',
+      ],
+      recommendation: `[Mock] Crop to ${p.name}'s aspect ratio and boost contrast on any overlaid text.`,
+    };
+  });
+  return {
+    image_summary: '[Mock mode] A graphic with a central subject and some overlaid text on a clean background.',
+    overall_score: rand(55, 85),
+    scores: {
+      visual_hook: rand(10, 18),
+      composition: rand(10, 18),
+      text_readability: rand(8, 16),
+      brand_fit: rand(12, 19),
+      platform_readiness: rand(9, 17),
+    },
+    strengths: ['Strong focal subject', 'On-brand color palette'],
+    weaknesses: ['Text may be hard to read on mobile', 'Edges feel slightly cramped'],
+    suggestions: ['Increase text size / contrast', 'Add safe-margin padding around key elements', 'Test a 1:1 and a 9:16 crop'],
+    platforms,
+  };
+}
+
+// =============================
+// CAMPAIGN PACK
+// =============================
+
+let lastCampaign = null;
+
+async function onGenerateCampaign() {
+  const goalText = $('campaign-goal-input')?.value.trim();
+  if (!goalText) { showToast('Describe your campaign goal first', 'warn'); return; }
+
+  const btn       = $('btn-generate-campaign');
+  const loadingEl = $('campaign-loading');
+  const resultsEl = $('campaign-results');
+  const stepPlan  = $('step-campaign-plan');
+  const stepAI    = $('step-campaign-ai');
+  const persona   = $('campaign-persona')?.value || 'general';
+  const goal      = $('campaign-goal-select')?.value || 'reach';
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-icon">⏳</span> Generating…';
+  loadingEl.classList.remove('hidden');
+  resultsEl.classList.add('hidden');
+  [stepPlan, stepAI].forEach(resetStep);
+
+  try {
+    let data;
+    if (state.backendLive) {
+      activateStep(stepPlan);
+      const res = await apiFetch('/campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign_goal: goalText, persona, goal }),
+      });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      completeStep(stepPlan);
+      activateStep(stepAI);
+      data = await res.json();
+      completeStep(stepAI);
+    } else {
+      await delay(600); activateStep(stepPlan);
+      await delay(700); completeStep(stepPlan); activateStep(stepAI);
+      await delay(900); completeStep(stepAI);
+      data = generateMockCampaign(goalText, persona);
+    }
+
+    loadingEl.classList.add('hidden');
+    renderCampaign(data);
+    resultsEl.classList.remove('hidden');
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch {
+    loadingEl.classList.add('hidden');
+    renderCampaign(generateMockCampaign(goalText, persona));
+    resultsEl.classList.remove('hidden');
+    showToast('Using mock campaign pack (backend error)', 'warn');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<span class="btn-icon">🚀</span> Generate Campaign Pack';
+}
+
+function renderCampaign(data) {
+  lastCampaign = data;
+  const overallEl = $('campaign-overall');
+  const gridEl    = $('campaign-grid');
+  gridEl.innerHTML = '';
+
+  if (data.overall_note) {
+    overallEl.innerHTML = `
+      <div class="overall-strategy-card">
+        <div class="overall-strategy-label">🚀 Campaign Strategy</div>
+        <div class="overall-strategy-text">${data.overall_note}</div>
+      </div>`;
+    overallEl.classList.remove('hidden');
+  } else {
+    overallEl.classList.add('hidden');
+  }
+
+  const posts = data.posts || {};
+  Object.entries(PLATFORMS).forEach(([pid, p]) => {
+    const post = posts[pid];
+    if (!post) return;
+
+    const conn = state.connectedAccounts[pid];
+    const canPublish = conn && !conn.blocked;
+
+    const card = document.createElement('div');
+    card.className = 'campaign-card';
+    card.innerHTML = `
+      <div class="campaign-head">
+        <span class="campaign-platform">${p.icon} ${p.name}</span>
+        ${post.text_alt ? '<button class="copy-btn campaign-lang-btn">عربي</button>' : ''}
+      </div>
+      <div class="campaign-post-text"></div>
+      <div class="campaign-hashtags">${(post.hashtags || []).map(t => `<span class="hashtag-pill">${t}</span>`).join('')}</div>
+      <div class="campaign-meta">🕒 ${post.best_time || '—'}</div>
+      ${post.persona_note ? `<div class="campaign-meta">🎯 ${post.persona_note}</div>` : ''}
+      <div class="campaign-actions">
+        <button class="copy-btn campaign-copy-btn">Copy</button>
+        ${canPublish
+          ? `<button class="btn-publish campaign-publish-btn">Publish</button>`
+          : `<span class="campaign-connect-note">Connect ${p.name} to publish</span>`}
+      </div>
+    `;
+
+    const textEl = card.querySelector('.campaign-post-text');
+    let showAlt = false;
+    const renderText = () => {
+      const t = (showAlt && post.text_alt) ? post.text_alt : post.text;
+      textEl.textContent = t || '';
+      applyDir(textEl, t);
+      const langBtn = card.querySelector('.campaign-lang-btn');
+      if (langBtn) {
+        const next = showAlt ? post.text : post.text_alt;
+        langBtn.textContent = isArabic(next) ? 'عربي' : 'EN';
+      }
+    };
+    renderText();
+
+    card.querySelector('.campaign-lang-btn')?.addEventListener('click', () => { showAlt = !showAlt; renderText(); });
+    card.querySelector('.campaign-copy-btn').addEventListener('click', e => {
+      navigator.clipboard.writeText(textEl.textContent).then(() => {
+        const b = e.target; b.textContent = 'Copied!';
+        b.style.background = 'var(--green)'; b.style.color = '#fff';
+        setTimeout(() => { b.textContent = 'Copy'; b.style.background = ''; b.style.color = ''; }, 1500);
+      });
+    });
+    const pubBtn = card.querySelector('.campaign-publish-btn');
+    if (pubBtn) pubBtn.addEventListener('click', () => publishText(pid, textEl.textContent, [pubBtn]));
+
+    gridEl.appendChild(card);
+  });
+}
+
+function generateMockCampaign(goalText, persona) {
+  const bestTimes = {
+    instagram: 'Fri 7pm GST', tiktok: 'Fri 8pm GST', twitter: 'Wed 9am GST',
+    youtube: 'Sat 3pm GST', linkedin: 'Tue 8am GST', facebook: 'Thu 7pm GST',
+  };
+  const posts = {};
+  Object.entries(PLATFORMS).forEach(([pid, p]) => {
+    posts[pid] = {
+      text: `🚀 [Mock ${p.name}] ${goalText} — connect the backend to generate a real ${p.name}-native post for the "${persona}" audience.`,
+      text_alt: `🚀 [وضع تجريبي · ${p.name}] ${goalText} — شغّل الخادم لإنشاء منشور حقيقي مخصص لمنصة ${p.name}.`,
+      hashtags: ['#StarsOfScience', '#Innovation', '#MENA'],
+      best_time: bestTimes[pid] || 'Wed 6pm GST',
+      persona_note: `Tailored for the ${persona} audience.`,
+      rationale: `[Mock] ${p.name}-specific framing.`,
+    };
+  });
+  return {
+    campaign_goal: goalText,
+    posts,
+    overall_note: `[Mock] A coordinated 6-platform push for "${goalText}" — lead with the hook on TikTok/Instagram, drive applications via the link on X/LinkedIn, and sustain reach on YouTube/Facebook.`,
   };
 }
 
