@@ -3077,7 +3077,12 @@ main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
 .frame-score { font-family: var(--font-display); font-size: 0.95rem; font-weight: 700; }
 .frame-feedback { font-size: 0.8rem; color: var(--gray-600); line-height: 1.5; margin-bottom: 6px; }
 .frame-suggestion { font-size: 0.78rem; color: var(--teal-dark); line-height: 1.5; }
-
+.video-platform-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
 .platform-fit-card {
   background: var(--white);
   border: 2px solid var(--gray-200);
@@ -3102,4 +3107,13 @@ main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
 .pfit-recommendation {
   font-size: 0.8rem; color: var(--teal-dark); background: #F0FDF8;
   border: 1px solid #B2F0D9; border-radius: var(--radius-sm); padding: 8px 10px; line-height: 1.5;
+}
+
+/* Image Analyzer platform-fit: force a 3-column × 2-row grid for the 6 cards
+   (scoped to #image-platform-fit only — does not affect the video analyzer). */
+#image-platform-fit .video-platform-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 720px) {
+  #image-platform-fit .video-platform-grid { grid-template-columns: 1fr; }
 }
