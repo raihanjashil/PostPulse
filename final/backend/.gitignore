@@ -3,3 +3,4 @@ __pycache__/
 node_modules/
 .env
 platform_config.json
+edited_video.mp4
