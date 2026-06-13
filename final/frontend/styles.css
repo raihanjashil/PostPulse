@@ -1264,7 +1264,7 @@ main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
   gap: 18px;
 }
 .edit-studio-music-card {
-  max-width: 420px;
+  max-width: none;
   width: 100%;
 }
 .edit-studio-music-card .music-match-shell {
@@ -1699,7 +1699,7 @@ main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
 }
 .music-match-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.55fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
   margin-bottom: 16px;
@@ -1712,9 +1712,24 @@ main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
   padding: 16px;
 }
 .music-action-panel {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-content: start;
+  align-items: stretch;
+}
+.music-action-panel .studio-field {
+  width: 100%;
+}
+.music-action-panel > .btn-primary {
+  flex: 1 1 calc(50% - 6px);
+  min-width: 0;
+  min-height: 58px;
+  justify-content: center;
+}
+.music-mood-summary,
+.audio-status-section {
+  display: none;
 }
 .music-mood-value {
   margin-top: 8px;

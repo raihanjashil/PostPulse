@@ -3402,6 +3402,7 @@ function renderEditStudioSection() {
 
 function renderMusicMatchSection() {
   const moods = [
+    ['', 'Auto AI'],
     ['inspiring', 'Inspiring'],
     ['energetic', 'Energetic'],
     ['emotional', 'Emotional'],
@@ -3554,7 +3555,7 @@ function renderMusicMatchSection() {
         </div>
       `;
     }).join('')
-    : `<div class="music-empty-state">${musicMatchState.searched ? 'No music recommendations returned yet.' : 'Choose a mood or let AI detect one, then find matching music.'}</div>`;
+    : `<div class="music-empty-state">${musicMatchState.searched ? 'No music recommendations returned yet.' : 'Choose Auto AI or a mood, then find matching music.'}</div>`;
 
   // Add Music result
   const addMusicResultHtml = musicMatchState.addMusicResult
@@ -3587,7 +3588,7 @@ function renderMusicMatchSection() {
           <h2>AI Music Match</h2>
           <p class="results-sub">Match background tracks to the transcript mood, platform, and video pacing.</p>
         </div>
-        <span class="music-status-pill">${musicMatchState.busy ? 'Finding tracks' : musicMatchState.addingMusic ? 'Adding music...' : musicMatchState.detectedMood ? `Mood: ${escapeHtml(musicMatchState.detectedMood)}` : 'Ready'}</span>
+        <span class="music-status-pill">${musicMatchState.busy ? 'Finding tracks' : musicMatchState.addingMusic ? 'Adding music...' : 'Ready'}</span>
       </div>
 
       <div class="music-match-controls">
@@ -3601,9 +3602,8 @@ function renderMusicMatchSection() {
 
         <div class="music-action-panel">
           <label class="studio-field">
-            <span>Manual mood override</span>
+            <span>Music mood</span>
             <select id="music-mood-select">
-              <option value="">Auto detect mood</option>
               ${moods.map(([value, label]) => `<option value="${value}" ${musicMatchState.selectedMood === value ? 'selected' : ''}>${label}</option>`).join('')}
             </select>
           </label>
@@ -3854,13 +3854,12 @@ async function onFindMusic() {
         : 'Jamendo API key not configured.',
     };
     
-    // Analyze audio after getting recommendations
-    if (editStudioState.videoId && lastVideoAnalysisResult.transcript) {
-      await analyzeVideoAudio();
-    }
-    
     renderVideoResults(lastVideoAnalysisResult);
     showToast(data.jamendo_configured ? 'Music recommendations loaded.' : 'Jamendo API key not configured.', data.jamendo_configured ? 'success' : 'warn');
+    
+    if (editStudioState.videoId && lastVideoAnalysisResult.transcript) {
+      void analyzeVideoAudio();
+    }
   } catch (error) {
     musicMatchState = {
       ...musicMatchState,
@@ -3911,9 +3910,11 @@ async function analyzeVideoAudio() {
     };
     
     console.log('[Audio Analysis] Updated state - Audio detected:', musicMatchState.audioDetected, 'Speech detected:', musicMatchState.speechDetected);
+    renderVideoResults(lastVideoAnalysisResult);
   } catch (error) {
     console.error('[Audio Analysis] Failed:', error?.message);
     musicMatchState.audioWarnings.push(`Audio analysis error: ${error?.message || 'Unknown'}`);
+    renderVideoResults(lastVideoAnalysisResult);
   }
 }
 
