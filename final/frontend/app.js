@@ -1016,6 +1016,17 @@ function renderHeatBucketIcon(bucket) {
   }
 }
 
+function renderUiIcon(name, className = 'ui-inline-icon') {
+  switch (name) {
+    case 'clock':
+      return `<span class="${className}" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="8.5" class="ui-icon-stroke"></circle><path d="M12 7.5V12l3 2" class="ui-icon-stroke"></path></svg></span>`;
+    case 'target':
+      return `<span class="${className}" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="8.5" class="ui-icon-stroke"></circle><circle cx="12" cy="12" r="4.5" class="ui-icon-stroke"></circle><circle cx="12" cy="12" r="1.6" class="ui-icon-solid"></circle><path d="M16.8 7.2 20 4m-1.2 0H20v1.2" class="ui-icon-stroke"></path></svg></span>`;
+    default:
+      return '';
+  }
+}
+
 function renderSchedule() {
   scheduleGrid.innerHTML = '';
 
@@ -2429,13 +2440,13 @@ function renderCampaign(data) {
     card.className = 'campaign-card';
     card.innerHTML = `
       <div class="campaign-head">
-        <span class="campaign-platform">${p.icon} ${p.name}</span>
+        <span class="campaign-platform">${renderPlatformIcon(pid, 'campaign-platform-icon')}<span>${p.name}</span></span>
         ${post.text_alt ? '<button class="copy-btn campaign-lang-btn">عربي</button>' : ''}
       </div>
       <div class="campaign-post-text"></div>
       <div class="campaign-hashtags">${(post.hashtags || []).map(t => `<span class="hashtag-pill">${t}</span>`).join('')}</div>
-      <div class="campaign-meta">🕒 ${post.best_time || '—'}</div>
-      ${post.persona_note ? `<div class="campaign-meta">🎯 ${post.persona_note}</div>` : ''}
+      <div class="campaign-meta">${renderUiIcon('clock', 'campaign-meta-icon')}<span>${post.best_time || '—'}</span></div>
+      ${post.persona_note ? `<div class="campaign-meta">${renderUiIcon('target', 'campaign-meta-icon')}<span>${post.persona_note}</span></div>` : ''}
       <div class="campaign-actions">
         <button class="copy-btn campaign-copy-btn">Copy</button>
         ${canPublish

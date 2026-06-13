@@ -3268,10 +3268,48 @@ html[data-active-tab="campaign"] .tab-btn[data-tab="campaign"] .tab-btn-icon {
   gap: 8px;
 }
 .campaign-platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 0.95rem;
   color: var(--dark);
+}
+.campaign-platform-icon,
+.campaign-meta-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.campaign-platform-icon {
+  width: 20px;
+  height: 20px;
+}
+.campaign-platform-icon svg,
+.campaign-meta-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.campaign-platform-icon svg path {
+  fill: currentColor;
+  stroke: none;
+}
+.campaign-platform-icon .platform-icon-solid {
+  fill: currentColor;
+  stroke: none;
+}
+.campaign-platform-icon .platform-icon-outline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  vector-effect: non-scaling-stroke;
+}
+.campaign-platform-icon .platform-icon-cutout {
+  fill: var(--white);
+  stroke: none;
 }
 .campaign-post-text {
   font-size: 0.9rem;
@@ -3284,7 +3322,32 @@ html[data-active-tab="campaign"] .tab-btn[data-tab="campaign"] .tab-btn-icon {
   min-height: 80px;
 }
 .campaign-hashtags { display: flex; flex-wrap: wrap; gap: 6px; }
-.campaign-meta { font-size: 0.78rem; color: var(--gray-600); line-height: 1.5; }
+.campaign-meta {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--gray-600);
+  line-height: 1.5;
+}
+.campaign-meta-icon {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--teal);
+}
+.campaign-meta-icon .ui-icon-solid {
+  fill: currentColor;
+  stroke: none;
+}
+.campaign-meta-icon .ui-icon-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
 .campaign-actions {
   display: flex;
   align-items: center;
