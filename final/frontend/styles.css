@@ -30,9 +30,13 @@
   --font-display: 'Space Grotesk', sans-serif;
   --font-body:    'Inter', sans-serif;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+
+  /* Soft elevation, shared with the landing's card language */
+  --shadow-sm: 0 1px 2px rgba(22,21,28,0.04), 0 8px 24px rgba(22,21,28,0.05);
+  --shadow-md: 0 16px 40px rgba(22,21,28,0.10);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -45,16 +49,25 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ---- TOPBAR ---- */
+/* ---- TOPBAR (matches the landing nav for a seamless hand-off) ---- */
 .topbar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 32px; background: var(--dark); color: var(--white);
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; color: var(--dark);
+  background: rgba(255,255,255,0.82);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--gray-200);
   position: sticky; top: 0; z-index: 100;
 }
-.topbar-left { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
-.logo-mark { font-size: 1.4rem; color: var(--teal); }
-.logo-text { font-family: var(--font-display); font-weight: 700; font-size: 1.25rem; letter-spacing: -0.02em; }
-.logo-tag { font-size: 0.75rem; color: var(--gray-400); padding-left: 8px; border-left: 1px solid var(--dark-mid); }
+.topbar-inner {
+  width: 100%; max-width: 1280px; height: 68px; padding: 0 40px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.topbar-left { display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--dark); }
+.logo-mark { font-size: 1.35rem; color: var(--teal); transition: transform 0.15s; }
+.logo-text { font-family: var(--font-display); font-weight: 700; font-size: 1.18rem; letter-spacing: -0.02em; color: var(--dark); }
+.logo-tag { font-size: 0.72rem; font-weight: 500; color: var(--gray-400); padding-left: 9px; margin-left: 2px; border-left: 1px solid var(--gray-200); }
+.topbar-left:hover .logo-mark { transform: scale(1.08); }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 .status-dot {
   width: 8px; height: 8px; border-radius: 50%;
@@ -62,12 +75,15 @@ body {
 }
 .status-dot.live { background: var(--green); }
 .status-dot.mock { background: var(--orange); }
-.status-text { font-size: 0.8rem; color: var(--gray-400); }
+.status-text { font-size: 0.8rem; color: var(--gray-600); }
 
 @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 /* ---- MAIN ---- */
-main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
+main { max-width: 1280px; margin: 0 auto; padding: 44px 40px 96px; }
+/* Keep long-form reading text at a comfortable measure even on the wide canvas,
+   while cards/grids below stretch to fill the full width. */
+.input-header, .results-header, .section-head { max-width: 760px; }
 
 /* ---- INPUT ---- */
 .input-section { margin-bottom: 48px; }
@@ -117,23 +133,24 @@ main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
 
 /* ---- BUTTONS ---- */
 .btn-primary {
-  display: inline-flex; align-items: center; gap: 6px; padding: 10px 22px;
+  display: inline-flex; align-items: center; gap: 7px; padding: 11px 24px;
   background: var(--teal); color: var(--white); border: none; border-radius: var(--radius-sm);
   font-family: var(--font-body); font-size: 0.9rem; font-weight: 600;
-  cursor: pointer; transition: background 0.15s, transform 0.1s;
+  cursor: pointer; box-shadow: 0 6px 18px rgba(124,92,255,0.26);
+  transition: background 0.15s, box-shadow 0.15s, transform 0.12s;
 }
-.btn-primary:hover { background: var(--teal-dark); }
-.btn-primary:active { transform: scale(0.97); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary:hover { background: var(--teal-dark); box-shadow: 0 10px 26px rgba(124,92,255,0.34); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(1px); }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: none; }
 .btn-icon { font-size: 1.1rem; }
 
 .btn-secondary {
-  padding: 10px 18px; background: transparent; color: var(--gray-600);
+  padding: 11px 20px; background: var(--white); color: var(--gray-600);
   border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
   font-family: var(--font-body); font-size: 0.85rem; font-weight: 500;
-  cursor: pointer; transition: border-color 0.15s;
+  cursor: pointer; transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.btn-secondary:hover { border-color: var(--gray-400); }
+.btn-secondary:hover { border-color: var(--dark); color: var(--dark); }
 
 /* ---- CHIPS ---- */
 .platform-select { display: flex; flex-direction: column; gap: 10px; }
@@ -443,8 +460,8 @@ main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
   .detail-body { grid-template-columns: 1fr; }
   .extra-inputs { flex-direction: column; }
   .benchmark-grid { grid-template-columns: repeat(2, 1fr); }
-  main { padding: 32px 16px 60px; }
-  .topbar { padding: 12px 16px; }
+  main { padding: 32px 18px 64px; }
+  .topbar-inner { padding: 0 18px; height: 60px; }
   .logo-tag { display: none; }
   .pipeline-step { padding: 14px 16px; }
   .accounts-grid { grid-template-columns: repeat(3, 1fr); }
@@ -626,18 +643,18 @@ main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
    SETTINGS GEAR BUTTON (topbar)
    ============================================= */
 #btn-settings {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.25);
-  color: var(--white);
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  color: var(--gray-600);
   border-radius: var(--radius-sm);
-  padding: 5px 9px;
+  padding: 6px 10px;
   font-size: 1rem;
   cursor: pointer;
   line-height: 1;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   margin-left: 12px;
 }
-#btn-settings:hover { background: rgba(255,255,255,0.12); }
+#btn-settings:hover { background: var(--gray-100); border-color: var(--gray-400); color: var(--dark); }
 
 /* =============================================
    ACCOUNT CREDENTIAL FORM (inline in account cards)
@@ -3120,3 +3137,73 @@ main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
 @media (max-width: 720px) {
   #image-platform-fit .video-platform-grid { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   PUBLISH-READY POLISH
+   Brings the product's surfaces in line with the landing page:
+   lighter 1px borders, soft depth, gentle hover lift, more air.
+   Purely cosmetic — no markup, IDs, or behaviour change.
+   ============================================================ */
+
+/* --- Card surfaces: lighter borders + subtle elevation --- */
+.benchmark-card, .score-card, .insight-card, .campaign-card, .schedule-card,
+.growth-card, .video-summary-card, .creative-card, .platform-fit-card,
+.video-frame-card, .accounts-section, .pipeline-steps, .detail-panel,
+.heatmap, .input-box, .overall-strategy-card, .recommendation-card,
+.best-thumbnail-card, .acct-col {
+  border-width: 1px !important;
+  box-shadow: var(--shadow-sm);
+}
+
+/* --- Interactive cards: gentle lift, like the landing's feature cards --- */
+.score-card, .insight-card, .campaign-card, .platform-fit-card,
+.video-frame-card, .creative-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.score-card:hover, .insight-card:hover, .campaign-card:hover,
+.platform-fit-card:hover, .video-frame-card:hover, .creative-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+/* --- Compose box: refined focus ring instead of a hard border --- */
+.input-box { transition: border-color 0.15s, box-shadow 0.15s; }
+.input-box:focus-within { border-color: var(--teal); box-shadow: 0 0 0 4px var(--teal-light); }
+
+/* --- Inputs & selects: softer resting state, clear lavender focus ring --- */
+.extra-input-group input, .extra-input-group select, .settings-input,
+#topic-input, #image-topic-input {
+  border-width: 1px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.extra-input-group input:focus, .extra-input-group select:focus, .settings-input:focus {
+  box-shadow: 0 0 0 4px var(--teal-light);
+}
+
+/* --- Tab bar: premium segmented control --- */
+.tab-bar {
+  border-width: 1px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 32px;
+}
+.tab-btn { transition: background 0.15s, color 0.15s, box-shadow 0.15s; }
+.tab-btn.active { box-shadow: 0 4px 14px rgba(22,21,28,0.22); }
+
+/* --- Chips & platform toggles: tactile press feel --- */
+.chip { transition: all 0.15s ease; }
+.chip.active { box-shadow: 0 4px 12px rgba(124,92,255,0.25); }
+
+/* --- Upload dropzones: thinner dashed border, soft hover wash --- */
+.video-upload-area { border-width: 1.5px; }
+
+/* --- Section rhythm: a touch more breathing room --- */
+.results-header h2 { letter-spacing: -0.03em; }
+.results-section { margin-top: 40px; }
+.input-section { margin-bottom: 56px; }
+
+/* --- Accounts panel: align with the new card language --- */
+.account-card { border-width: 1px; transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s; }
+.account-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+
+/* --- Toast: deeper, softer shadow --- */
+.toast { box-shadow: 0 18px 44px rgba(22,21,28,0.28); }
