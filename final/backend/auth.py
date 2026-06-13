@@ -1,11 +1,20 @@
+import os
 import secrets
 import hashlib
 import base64
 import urllib.parse
 import requests
+from dotenv import load_dotenv
 from fastapi.responses import RedirectResponse, HTMLResponse
 import sessions as sessions_module
 import platform_config as cfg_module
+
+load_dotenv()
+
+# Public origin the app is reachable at. Set PUBLIC_BASE_URL in the host's env to the
+# deployed domain (e.g. https://postpulse.onrender.com). Defaults to the local dev server.
+# This must exactly match the redirect URIs registered in each OAuth app.
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
 
 # ---- PKCE helpers ----
 
@@ -26,7 +35,7 @@ OAUTH_META: dict[str, dict] = {
         "auth_url":     "https://twitter.com/i/oauth2/authorize",
         "token_url":    "https://api.twitter.com/2/oauth2/token",
         "scope":        "tweet.read tweet.write users.read offline.access",
-        "redirect_uri": "http://localhost:8000/auth/twitter/callback",
+        "redirect_uri": f"{PUBLIC_BASE_URL}/auth/twitter/callback",
         "pkce":         True,
         "blocked":      False,
     },
@@ -34,7 +43,7 @@ OAUTH_META: dict[str, dict] = {
         "auth_url":     "https://www.linkedin.com/oauth/v2/authorization",
         "token_url":    "https://www.linkedin.com/oauth/v2/accessToken",
         "scope":        "openid profile w_member_social",
-        "redirect_uri": "http://localhost:8000/auth/linkedin/callback",
+        "redirect_uri": f"{PUBLIC_BASE_URL}/auth/linkedin/callback",
         "pkce":         False,
         "blocked":      False,
     },

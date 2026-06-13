@@ -20,7 +20,13 @@
    ============================ */
 
 // ---- CONFIG ----
-const API_BASE = 'http://localhost:8000';
+// In production the backend serves this frontend, so calls are same-origin (relative).
+// For local dev where the frontend is served separately (e.g. Live Server on :5500),
+// fall back to the FastAPI dev server on :8000.
+const API_BASE =
+  (['localhost', '127.0.0.1'].includes(location.hostname) && location.port !== '8000')
+    ? 'http://localhost:8000'
+    : '';
 
 // ---- SESSION ----
 function getOrCreateSessionId() {
@@ -339,7 +345,10 @@ function startOAuthFlow(platform) {
   );
 
   function onMessage(e) {
-    if (e.origin !== 'http://localhost:8000') return;
+    // The OAuth popup is served by the backend, so its origin matches the API origin
+    // (same-origin in production, the :8000 dev server locally).
+    const expectedOrigin = API_BASE || window.location.origin;
+    if (e.origin !== expectedOrigin) return;
     const msg = e.data;
     if (!msg || !msg.type || msg.platform !== platform) return;
     window.removeEventListener('message', onMessage);
