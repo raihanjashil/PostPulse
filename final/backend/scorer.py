@@ -11,7 +11,7 @@ from data_layer import (
 )
 from brand_config import BRAND_PROFILE, PERSONAS
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 

@@ -17,8 +17,20 @@ COPY final/ ./final/
 
 WORKDIR /app/final/backend
 
-# Hosts inject the port via $PORT; default to 8000 for local `docker run`.
-ENV PORT=8000
+# Caches must live somewhere world-writable: Hugging Face Spaces may run the
+# container as a non-root user, so point model/cache dirs at /tmp and reuse the
+# apt-installed ffmpeg instead of letting imageio-ffmpeg download its own.
+ENV HF_HOME=/tmp/hf-cache \
+    XDG_CACHE_HOME=/tmp/cache \
+    HOME=/tmp \
+    IMAGEIO_FFMPEG_EXE=/usr/bin/ffmpeg \
+    PORT=8000
+
+# Make the rendered-video output dir writable regardless of the runtime user.
+# (Per-video subfolders are created here at runtime.)
+RUN mkdir -p /tmp/hf-cache /tmp/cache edited_versions \
+    && chmod -R 777 /tmp/hf-cache /tmp/cache edited_versions
+
 EXPOSE 8000
 
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

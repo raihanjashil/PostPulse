@@ -15,7 +15,7 @@ from openai import OpenAI
 
 from brand_config import BRAND_PROFILE
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().with_name(".env"))
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
